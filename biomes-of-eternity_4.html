@@ -1,0 +1,2562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biomes of Eternity</title>
+<style>
+  /* Palette: bone / amber / rust on a dark ground. Everything is monospace. */
+  :root {
+    --ink: #0c0b0e; --panel: rgba(18,16,20,0.92); --line: #3a332c;
+    --bone: #e6dcc3; --bone-dim: #9c937e; --amber: #e8b25a; --rust: #b8482a; --moss: #8fbf6a; --ice: #9fc4ff;
+    --font: "IBM Plex Mono", "JetBrains Mono", "Fira Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone); font-family: var(--font); font-size: 13px; overflow: hidden; }
+  canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+  svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
+  button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+  input { font: inherit; color: var(--bone); background: #15131a; border: 1px solid var(--line); padding: 8px 10px; width: 100%; }
+  .btn { padding: 7px 12px; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; }
+  .btn:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.small { padding: 5px 8px; font-size: 10px; }
+  .eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bone-dim); }
+
+  /* ---- HUD frame ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud > * { pointer-events: auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; }
+
+  #top { position: absolute; top: 12px; left: 12px; width: 300px; }
+  #town-name { display: block; width: 100%; text-align: left; border: none; padding: 0; font-size: 18px; color: var(--amber); letter-spacing: 0.02em; }
+  #town-name:hover { text-decoration: underline dotted; }
+  .stats { display: flex; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--bone-dim); }
+  .stats b { color: var(--bone); font-weight: 500; }
+  .bar { height: 5px; background: #221e24; margin-top: 6px; position: relative; }
+  .bar > i { display: block; height: 100%; background: var(--amber); width: 0; transition: width 0.3s; }
+  #hp-bar > i { background: var(--moss); }
+  .bar-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--bone-dim); margin-top: 3px; }
+
+  /* ---- Signature: the elevation rail. Three stops, one lit. ---- */
+  #layers { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: stretch; width: 120px; }
+  #layers .rail { position: absolute; left: 21px; top: 22px; bottom: 22px; width: 1px; background: var(--line); }
+  #layers button { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 10px; border: none; text-align: left; color: var(--bone-dim); }
+  #layers button .dot { width: 20px; height: 20px; border: 1px solid var(--line); border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex: none; }
+  #layers button .lab { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+  #layers button .lab small { display: block; font-size: 9px; letter-spacing: 0.04em; text-transform: none; color: var(--bone-dim); }
+  #layers button.active { color: var(--amber); }
+  #layers button.active .dot { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(232,178,90,0.18), 0 0 18px rgba(232,178,90,0.35); }
+  #layers button:hover .dot { border-color: var(--bone); }
+
+  #quest { position: absolute; top: 12px; right: 12px; width: 280px; }
+  #quest-title { font-size: 15px; color: var(--bone); margin: 4px 0 2px; }
+  #quest-desc { color: var(--bone-dim); line-height: 1.45; }
+  #quest-exp { color: var(--amber); font-size: 11px; margin-top: 6px; }
+
+  #mini { position: absolute; right: 12px; top: 150px; width: 280px; }
+  #minimap { width: 100%; height: 180px; display: block; image-rendering: pixelated; border: 1px solid var(--line); background: #000; }
+  #biome { font-size: 11px; color: var(--bone-dim); margin-top: 6px; }
+
+  #log { position: absolute; left: 12px; bottom: 80px; width: 360px; font-size: 11px; line-height: 1.5; color: var(--bone-dim); pointer-events: none; }
+  #log div:first-child { color: var(--bone); }
+  .log-good { color: var(--moss); } .log-warn { color: var(--rust); }
+
+  #bottom { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; align-items: flex-end; }
+  #inv { display: flex; gap: 6px; padding: 8px; }
+  .inv-slot { width: 62px; padding: 6px 4px; border: 1px solid var(--line); text-align: center; }
+  .inv-slot svg { display: block; margin: 0 auto 4px; width: 16px; height: 16px; color: var(--bone-dim); }
+  .inv-slot .n { display: block; font-size: 14px; color: var(--bone); }
+  .inv-slot .l { display: block; font-size: 9px; color: var(--bone-dim); letter-spacing: 0.1em; text-transform: uppercase; }
+  #coinbox { padding: 12px 14px; color: var(--amber); font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  #actions { display: flex; flex-direction: column; gap: 6px; }
+  #actions .btn { width: 120px; text-align: left; background: var(--panel); }
+  #actions .btn kbd { float: right; color: var(--bone-dim); }
+  #build-hint { position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%); color: var(--amber); font-size: 11px; white-space: nowrap; }
+
+  #settler { position: absolute; right: 12px; bottom: 12px; width: 280px; }
+  #settler-name { font-size: 15px; } #settler-role { color: var(--bone-dim); font-size: 11px; margin: 4px 0 8px; }
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .roles button { padding: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .roles button.active { border-color: var(--amber); color: var(--amber); }
+
+  /* ---- panels ---- */
+  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(760px, 92vw); max-height: 86vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); padding: 18px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .panel-head h2 { margin: 0; font-size: 16px; font-weight: 500; color: var(--amber); letter-spacing: 0.04em; }
+  .close { border: none; color: var(--bone-dim); font-size: 12px; }
+  #build-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+  .build-card { position: relative; text-align: left; padding: 10px; display: block; overflow: hidden; }
+  .build-card:hover:not(:disabled) { border-color: var(--amber); }
+  .build-card.active { border-color: var(--amber); background: rgba(232,178,90,0.08); }
+  .bc-shape { color: var(--bone-dim); } .bc-name { font-size: 13px; margin: 4px 0; }
+  .bc-cost { font-size: 10px; color: var(--bone-dim); } .bc-cost .short { color: var(--rust); }
+  .bc-desc { font-size: 10px; color: var(--bone-dim); margin-top: 6px; line-height: 1.4; }
+  .build-card.poor .bc-name { color: var(--bone-dim); }
+  .bc-lock { position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(12,11,14,0.85) 0 8px, rgba(30,26,30,0.85) 8px 16px); display: grid; place-items: center; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; gap: 4px; grid-auto-flow: row; align-content: center; }
+  .build-card.locked { cursor: default; }
+  .pass-tier { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12px; color: var(--bone-dim); }
+  .pass-tier b { color: var(--bone-dim); font-weight: 500; } .pass-tier i { font-style: normal; font-size: 10px; }
+  .pass-tier.done { color: var(--bone); } .pass-tier.done b { color: var(--amber); }
+  .ally-row { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .ally-head { display: flex; gap: 8px; align-items: center; } .ally-head b { font-weight: 500; }
+  .rel { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-left: auto; }
+  .rel-neutral { color: var(--bone-dim); } .rel-ally { color: var(--moss); } .rel-hostile { color: var(--rust); }
+  .ally-meta { font-size: 11px; color: var(--bone-dim); margin: 4px 0 8px; }
+  .ally-acts { display: flex; gap: 6px; }
+  #ally-buffer { font-size: 11px; color: var(--bone-dim); margin-top: 12px; line-height: 1.5; }
+  .help { font-size: 11px; color: var(--bone-dim); line-height: 1.6; margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+  kbd { border: 1px solid var(--line); padding: 0 4px; font-size: 10px; }
+
+  #spawn { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ink); }
+  #spawn { overflow: auto; }
+  .spawn-box { width: min(960px, 96vw); display: flex; flex-direction: column; max-height: 94vh; }
+  #spawn-canvas, #map-canvas { width: 100%; height: auto; max-height: 60vh; object-fit: contain; display: block; border: 1px solid var(--line); background: #000; cursor: grab; image-rendering: pixelated; flex: 0 1 auto; }
+  #spawn-canvas:active, #map-canvas:active { cursor: grabbing; }
+  .spawn-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--bone-dim); flex: 0 0 auto; }
+  .spawn-foot .btn { flex: 0 0 auto; } #spawn-pick { flex: 1 1 auto; }
+  .map-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+  #map-info { font-size: 12px; color: var(--bone-dim); flex: 1 1 auto; }
+  .btn.primary { border-color: var(--amber); color: var(--amber); } .btn.danger:hover:not(:disabled) { border-color: var(--rust); color: var(--rust); }
+  .mat-row { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .mat-head { display: flex; gap: 8px; align-items: center; } .mat-head b { font-weight: 500; } .mat-n { margin-left: auto; color: var(--amber); font-size: 14px; }
+  .mat-meta { font-size: 11px; color: var(--bone-dim); margin-top: 3px; }
+  .auth-links { text-align: right; margin-top: 6px; }
+  .link { border: none; padding: 0; font-size: 11px; color: var(--bone-dim); text-decoration: underline dotted; } .link:hover { color: var(--amber); }
+  .inbox { margin-top: 12px; border: 1px solid var(--line); background: #15131a; padding: 10px; font-size: 11px; }
+  .inbox-head { display: flex; justify-content: space-between; color: var(--bone-dim); margin-bottom: 6px; }
+  .inbox-row { display: grid; grid-template-columns: 56px 1fr; gap: 6px; color: var(--bone-dim); } .inbox-row b { font-weight: 500; color: var(--bone); }
+  .inbox-body { margin-top: 8px; line-height: 1.5; border-top: 1px dashed var(--line); padding-top: 8px; } .inbox-body b { color: var(--amber); font-size: 16px; letter-spacing: 0.2em; }
+  /* ---- auth ---- */
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #bg-fade { position: fixed; inset: 0; background: var(--ink); opacity: 0; transition: opacity 0.7s; pointer-events: none; }
+  #bg-label { position: fixed; left: 16px; bottom: 14px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); pointer-events: none; }
+  #auth { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(12,11,14,0.25) 0%, rgba(12,11,14,0.75) 70%); }
+  #auth .box { backdrop-filter: blur(2px); }
+  #hotbar { display: flex; gap: 6px; padding: 6px; margin-bottom: 6px; }
+  #hotbar .slot { width: 96px; padding: 6px; text-align: left; position: relative; background: var(--panel); }
+  #hotbar .slot .k { position: absolute; top: 4px; right: 6px; font-size: 10px; color: var(--bone-dim); }
+  #hotbar .slot .w { display: block; font-size: 12px; } #hotbar .slot .d { display: block; font-size: 9px; color: var(--bone-dim); margin-top: 2px; }
+  #hotbar .slot.empty .w { color: var(--bone-dim); } #hotbar .slot.active { border-color: var(--amber); } #hotbar .slot.active .w { color: var(--amber); }
+  #auth .box { width: 380px; }
+  #auth h1 { margin: 0; font-size: 26px; font-weight: 500; letter-spacing: 0.06em; color: var(--amber); }
+  #auth h1 small { display: block; font-size: 10px; letter-spacing: 0.22em; color: var(--bone-dim); margin-top: 6px; }
+  #auth .strata { display: flex; gap: 4px; margin: 16px 0; }
+  #auth .strata i { flex: 1; height: 3px; background: var(--line); } #auth .strata i:nth-child(2) { background: var(--amber); }
+  #auth label { display: block; margin: 14px 0 6px; } 
+  #auth .btn { width: 100%; margin-top: 8px; display: flex; gap: 8px; justify-content: center; align-items: center; }
+  #auth .btn.primary { border-color: var(--amber); color: var(--amber); }
+  #auth-err { color: var(--rust); font-size: 11px; min-height: 14px; margin-top: 6px; }
+  #auth .note { font-size: 10px; color: var(--bone-dim); line-height: 1.5; margin-top: 14px; }
+
+  @media (max-width: 900px) {
+    #mini, #log { display: none; } #top, #quest { width: 220px; } #layers { width: 44px; } #layers .lab { display: none; }
+    #actions .btn { width: 92px; } .inv-slot { width: 46px; } .inv-slot .l { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<!-- Login slideshow: live renders of a sample world (see startPreview in game.js) -->
+<canvas id="bg"></canvas>
+<div id="bg-fade"></div>
+<div id="bg-label"></div>
+
+<!-- Sign-in simulation: no real OAuth. A profile is created locally. -->
+<div id="auth">
+  <div class="box card">
+    <h1>Biomes of Eternity<small>Sky / Surface / Depths</small></h1>
+    <div class="strata"><i></i><i></i><i></i></div>
+    <div id="auth-login">
+      <p class="eyebrow">Sign in to claim a settlement</p>
+      <label class="eyebrow" for="auth-email">Gmail address</label>
+      <input id="auth-email" type="email" placeholder="you@gmail.com" autocomplete="email">
+      <label class="eyebrow" for="auth-username">Username <span style="color:var(--bone-dim)">(new accounts)</span></label>
+      <input id="auth-username" type="text" maxlength="20" placeholder="how others see you" autocomplete="username">
+      <label class="eyebrow" for="auth-pass">Password</label>
+      <input id="auth-pass" type="password" placeholder="at least 6 characters" autocomplete="current-password">
+      <div id="auth-err"></div>
+      <button id="auth-gmail" class="btn primary"><span data-icon="mail"></span>Sign in</button>
+      <button id="auth-create" class="btn">Create account</button>
+      <div class="auth-links"><button id="auth-forgot-link" class="link">Forgot password</button></div>
+      <button id="auth-guest" class="btn">Play as guest</button>
+      <button id="auth-reset" class="btn danger">Reset all accounts</button>
+    </div>
+    <div id="auth-forgot" class="hidden">
+      <p class="eyebrow">Reset your password</p>
+      <label class="eyebrow" for="forgot-email">Account email</label>
+      <input id="forgot-email" type="email" placeholder="you@gmail.com">
+      <button id="forgot-send" class="btn primary"><span data-icon="mail"></span>Send verification code</button>
+      <div id="inbox" class="inbox hidden">
+        <div class="inbox-head"><span class="eyebrow">Simulated inbox</span><span id="inbox-time"></span></div>
+        <div class="inbox-row"><b>To</b><span id="inbox-to"></span></div>
+        <div class="inbox-row"><b>From</b><span>Biomes of Eternity</span></div>
+        <div class="inbox-row"><b>Subject</b><span>Your password reset code</span></div>
+        <div class="inbox-body">Your verification code is <b id="inbox-code"></b>. It expires in 10 minutes. If you did not request this, ignore this message.</div>
+      </div>
+      <div id="forgot-step2" class="hidden">
+        <label class="eyebrow" for="forgot-code">Verification code</label>
+        <input id="forgot-code" inputmode="numeric" maxlength="6" placeholder="6 digits">
+        <label class="eyebrow" for="forgot-pass">New password</label>
+        <input id="forgot-pass" type="password" placeholder="at least 6 characters" autocomplete="new-password">
+        <button id="forgot-done" class="btn primary">Set new password</button>
+      </div>
+      <button id="forgot-back" class="btn">Back to sign in</button>
+    </div>
+    <p class="note">Accounts and worlds live in this browser only. Passwords are stored as salted hashes, and because there is no mail server the reset code is shown in a simulated inbox here instead of being emailed. Neighbouring colonies are AI stand-ins for other players.</p>
+  </div>
+</div>
+
+<!-- Spawn picker: whole world, pan by dragging or arrow keys, wheel to zoom, click to choose -->
+<div id="spawn" class="hidden">
+  <div class="spawn-box card">
+    <div class="panel-head"><h2>Choose where to settle</h2><span class="eyebrow">drag to scroll, wheel to zoom, click to pick</span></div>
+    <canvas id="spawn-canvas" width="900" height="520"></canvas>
+    <div class="spawn-foot"><span id="spawn-pick">Nothing chosen yet. Pick a biome you want to start in.</span><button id="spawn-ok" class="btn primary" disabled>Settle here</button></div>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="top" class="card">
+    <div class="eyebrow">Settlement of <span id="town-user">Mayor</span></div>
+    <button id="town-name" title="Rename (one change per day)">Unnamed Camp</button>
+    <div class="stats"><b id="lvl">LV 1</b><b id="tier">TIER 1</b><span id="def">DEF x1.00</span></div>
+    <div class="bar"><i id="exp-fill"></i></div>
+    <div class="bar-label"><span>Kingdom</span><span id="exp-text">0 EXP</span></div>
+    <div class="bar" id="hp-bar"><i id="hp-fill"></i></div>
+    <div class="bar-label"><span>Health</span><span id="hp-text">100 / 100</span></div>
+  </div>
+
+  <div id="layers">
+    <div class="rail"></div>
+    <button data-layer="sky"><span class="dot"><span data-icon="sky"></span></span><span class="lab">Sky<small>floating isles</small></span></button>
+    <button data-layer="surface" class="active"><span class="dot"><span data-icon="surface"></span></span><span class="lab">Surface<small>seven biomes</small></span></button>
+    <button data-layer="depths"><span class="dot"><span data-icon="depths"></span></span><span class="lab">Depths<small>ore and magma</small></span></button>
+  </div>
+
+  <div id="quest" class="card">
+    <div class="eyebrow" id="quest-idx">QUEST 1</div>
+    <div id="quest-title"></div>
+    <div id="quest-desc"></div>
+    <div id="quest-exp"></div>
+  </div>
+  <div id="mini" class="card">
+    <canvas id="minimap" width="192" height="128"></canvas>
+    <div id="biome"></div>
+  </div>
+
+  <div id="log"></div>
+  <div id="build-hint"></div>
+
+  <div id="bottom">
+    <div id="actions">
+      <button class="btn" id="btn-build">Build <kbd>B</kbd></button>
+      <button class="btn" id="btn-ally">Allies <kbd>F</kbd></button>
+      <button class="btn" id="btn-pass">Season <kbd>P</kbd></button>
+      <button class="btn" id="btn-map">Map <kbd>M</kbd></button>
+      <button class="btn" id="btn-mat">Materials <kbd>E</kbd></button>
+    </div>
+    <div>
+      <div id="hotbar"></div>
+      <div style="display:flex;gap:8px"><div id="inv" class="card"></div><div id="coinbox" class="card"><span data-icon="coins"></span><span id="coins">0</span></div></div>
+    </div>
+  </div>
+
+  <div id="settler" class="card hidden">
+    <div id="settler-name"></div>
+    <div id="settler-role"></div>
+    <div class="roles">
+      <button data-role="gather">Gather</button><button data-role="farm">Farm</button>
+      <button data-role="haul">Haul</button><button data-role="guard">Guard</button>
+      <button data-role="idle">Rest</button>
+    </div>
+  </div>
+
+  <div id="build" class="panel hidden">
+    <div class="panel-head"><h2>Build</h2><button class="close">close</button></div>
+    <div id="build-grid"></div>
+    <div class="help">Buildings take the architecture of the biome they stand in: adobe in the desert, igloos and spruce lodges in the arctic, stilted boardwalks on water and swamp, thatch and timber elsewhere. Structures must sit inside your territory. Locked recipes open with season tiers.</div>
+  </div>
+  <div id="ally" class="panel hidden">
+    <div class="panel-head"><h2>Neighbours and alliances</h2><button class="close">close</button></div>
+    <div id="ally-list"></div>
+    <div id="ally-buffer"></div>
+  </div>
+  <div id="pass-panel" class="panel hidden">
+    <div class="panel-head"><h2>Season pass</h2><button class="close">close</button></div>
+    <div id="pass"></div>
+    <div class="help">Kingdom EXP comes from quests, achievements, harvests and kills. Each tier unlocks recipes and raises your passive defense multiplier. Guards reach commander rank at tier 5.</div>
+  </div>
+  <div id="map" class="panel hidden" style="width:min(960px,96vw)">
+    <div class="panel-head"><h2>World map</h2><span class="eyebrow">drag or arrow keys to scroll, wheel to zoom</span><button class="close">close</button></div>
+    <canvas id="map-canvas" width="900" height="520"></canvas>
+    <div class="map-foot"><span id="map-info">Click anywhere to choose a destination.</span><button id="map-tp" class="btn primary" disabled>Click the map, then travel</button></div>
+  </div>
+  <div id="materials" class="panel hidden" style="width:520px">
+    <div class="panel-head"><h2>Materials</h2><button class="close">close</button></div>
+    <div id="mat-list"></div>
+  </div>
+  <div id="rename" class="panel hidden" style="width:360px">
+    <div class="panel-head"><h2>Name your settlement</h2><button class="close">close</button></div>
+    <input id="rename-input" maxlength="24" placeholder="Settlement name">
+    <div id="auth-err-spacer" style="height:6px"></div>
+    <div id="rename-err" style="color:var(--rust);font-size:11px;min-height:14px"></div>
+    <button class="btn" id="rename-ok" style="margin-top:8px">Save name</button>
+    <div class="help">One rename per day.</div>
+  </div>
+  <div id="offline" class="panel hidden" style="width:420px">
+    <div class="panel-head"><h2>While you were away</h2><button class="close">close</button></div>
+    <div id="offline-body" style="line-height:1.6"></div>
+    <div class="help">Offline bases receive an armored multiplier and assigned guards defend the perimeter automatically.</div>
+  </div>
+  <div id="help-panel" class="panel hidden" style="width:480px">
+    <div class="panel-head"><h2>Controls</h2><button class="close">close</button></div>
+    <div class="help" style="border:none;margin:0;padding:0">
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move. Mouse wheel zooms. Click ground to walk, click a tree, rock or ore to gather, click a beast or raider to fight, click a settler to assign work, click a ship to sail.<br>
+      <kbd>1</kbd>-<kbd>5</kbd> hotbar (slot 1 is fists; draw a weapon to do real damage). <kbd>B</kbd> build, <kbd>E</kbd> materials, <kbd>M</kbd> map, <kbd>F</kbd> allies, <kbd>P</kbd> season pass, <kbd>Q</kbd> ascend / <kbd>Z</kbd> descend a layer, <kbd>Esc</kbd> cancel.
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>if (typeof THREE === "undefined") document.write('<script src="three.min.js"><\/script>');</script>
+<script>if (typeof THREE === "undefined") { document.addEventListener("DOMContentLoaded", () => { document.querySelector("#auth-err").textContent = "Three.js did not load. Check your connection, or place three.min.js (r128) next to index.html."; }); }</script>
+<script>
+/* =====================================================================
+   BIOMES OF ETERNITY - world.js
+   Deterministic procedural world: noise, biomes, three elevation layers,
+   and the chunk manager that keeps a "massive" world cheap to render.
+
+   HOW THE MASSIVE WORLD WORKS (chunking)
+   --------------------------------------
+   The world is conceptually 2^20 x 2^20 tiles (roughly a million tiles on
+   a side). Nothing that large is ever stored. Every tile is a pure function
+   of (x, z, layer, seed): height, biome, and which resource (if any) sits
+   on it are derived from seeded value-noise and an integer hash. Because
+   the function is deterministic, any tile can be regenerated on demand and
+   two clients with the same seed agree on every tile without exchanging
+   terrain data.
+
+   The map is divided into CHUNK_SIZE x CHUNK_SIZE tile chunks. The chunk
+   manager keeps only the chunks within VIEW_RADIUS of the player resident
+   in memory and in the Three.js scene. When the player crosses a chunk
+   boundary, chunks that fell out of range are disposed (geometry freed,
+   meshes removed) and new ones are generated. Memory therefore stays at
+   (2*VIEW_RADIUS+1)^2 chunks regardless of how far the player travels.
+
+   Player modifications (a felled tree, a mined ore) are NOT baked into the
+   generator. They are stored as a sparse set of "removed" tile keys in
+   the persistent colony state. When a chunk regenerates, it consults that
+   set and skips those objects. This keeps the save small (only diffs) and
+   the world effectively infinite.
+   ===================================================================== */
+
+const CHUNK_SIZE = 16;
+const VIEW_RADIUS = 3;          // chunks in each direction around the player
+const WORLD_HALF = 1 << 19;     // conceptual world extent: +/- 524288 tiles
+const LAYERS = { SKY: 'sky', SURFACE: 'surface', DEPTHS: 'depths' };
+
+/* ---------- seeded hashing / noise (Three.js independent) ---------- */
+function hash2(x, z, seed) {
+  let h = (x * 374761393 + z * 668265263 + seed * 1442695041) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967296;
+}
+function smooth(t) { return t * t * (3 - 2 * t); }
+function valueNoise(x, z, seed) {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  const xf = x - xi, zf = z - zi;
+  const a = hash2(xi, zi, seed), b = hash2(xi + 1, zi, seed);
+  const c = hash2(xi, zi + 1, seed), d = hash2(xi + 1, zi + 1, seed);
+  const u = smooth(xf), v = smooth(zf);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function fbm(x, z, seed, octaves, freq) {
+  let sum = 0, amp = 1, norm = 0, f = freq;
+  for (let i = 0; i < octaves; i++) {
+    sum += valueNoise(x * f, z * f, seed + i * 101) * amp;
+    norm += amp; amp *= 0.5; f *= 2;
+  }
+  return sum / norm;
+}
+
+/* ---------- biome catalogue ---------- */
+const BIOMES = {
+  forest:  { name: 'Forest',  ground: 0x3f6b35, alt: 0x2f5228, wall: 0x5a4a32, arch: 'thatch' },
+  plains:  { name: 'Plains',  ground: 0x7d9c4c, alt: 0x6a8a40, wall: 0x6b5a3c, arch: 'thatch' },
+  desert:  { name: 'Desert',  ground: 0xd1ad6c, alt: 0xc39c5c, wall: 0x9c7a46, arch: 'adobe' },
+  arctic:  { name: 'Arctic',  ground: 0xe4ecf1, alt: 0xcfdbe3, wall: 0x8ea0ae, arch: 'igloo' },
+  savanna: { name: 'Savanna', ground: 0xbda552, alt: 0xa88f44, wall: 0x7c6a3a, arch: 'thatch' },
+  swamp:   { name: 'Swamp',   ground: 0x4f6038, alt: 0x3e4c2c, wall: 0x3c3a2c, arch: 'stilt' },
+  water:   { name: 'Ocean',   ground: 0xb8a878, alt: 0xa89868, wall: 0x8c7c58, arch: 'stilt' },
+  sky:     { name: 'Sky Isle',ground: 0x9fc4a8, alt: 0x86ad90, wall: 0xb8b0a0, arch: 'thatch' },
+  cavern:  { name: 'Cavern',  ground: 0x4a4650, alt: 0x3c3842, wall: 0x2a2730, arch: 'adobe' },
+  lava:    { name: 'Magma Vent', ground: 0xd8501e, alt: 0xb03c14, wall: 0x2a2730, arch: 'adobe' },
+};
+
+/* Resource / object placement tables per biome: [type, probability] */
+const OBJECT_TABLES = {
+  forest:  [['tree', 0.16], ['rock', 0.02], ['fiber', 0.04], ['beast', 0.006]],
+  plains:  [['tree', 0.03], ['rock', 0.025], ['fiber', 0.08], ['beast', 0.006]],
+  desert:  [['cactus', 0.03], ['rock', 0.06], ['fiber', 0.015], ['beast', 0.005]],
+  arctic:  [['spruce', 0.09], ['rock', 0.05], ['fiber', 0.01], ['beast', 0.006]],
+  savanna: [['acacia', 0.04], ['rock', 0.03], ['fiber', 0.07], ['beast', 0.01]],
+  swamp:   [['tree', 0.07], ['rock', 0.01], ['fiber', 0.09], ['beast', 0.008]],
+  water:   [],
+  sky:     [['tree', 0.05], ['rock', 0.04], ['fiber', 0.05], ['crystal', 0.02]],
+  cavern:  [['ore', 0.06], ['rock', 0.05], ['crystal', 0.01], ['beast', 0.01]],
+  lava:    [],
+};
+
+const RESOURCE_YIELD = {
+  tree:   { wood: 3 }, spruce: { wood: 3 }, acacia: { wood: 2, fiber: 1 }, cactus: { fiber: 2 },
+  rock:   { stone: 2 }, fiber: { fiber: 3 }, ore: { ore: 2, stone: 1 }, crystal: { crystal: 1, coins: 3 },
+};
+
+/* ---------- tile query: the single source of truth for the world ---------- */
+class WorldGen {
+  constructor(seed) { this.seed = seed; }
+
+  /* Returns {h, biome, exists, hazard} for a tile on a given layer.
+     h is the walkable floor height in world units (terraced). */
+  tile(x, z, layer) {
+    const s = this.seed;
+    if (layer === LAYERS.SURFACE) {
+      const n = fbm(x, z, s, 5, 0.012);
+      // fbm averages toward 0.5; stretch so every biome actually appears
+      const t = Math.min(1, Math.max(0, (fbm(x, z, s + 900, 3, 0.004) - 0.5) * 2.6 + 0.5));   // temperature
+      const m = Math.min(1, Math.max(0, (fbm(x, z, s + 1800, 3, 0.005) - 0.5) * 2.6 + 0.5));  // moisture
+      if (n < 0.40) return { h: -0.45, biome: 'water', exists: true, hazard: 0 };
+      let biome;
+      if (t < 0.34) biome = 'arctic';
+      else if (t > 0.70 && m < 0.42) biome = 'desert';
+      else if (t > 0.58 && m < 0.55) biome = 'savanna';
+      else if (m > 0.66 && n < 0.50) biome = 'swamp';
+      else if (m > 0.50) biome = 'forest';
+      else biome = 'plains';
+      const levels = Math.floor((n - 0.40) / 0.60 * 7);
+      return { h: levels * 0.5, biome, exists: true, hazard: 0 };
+    }
+    if (layer === LAYERS.SKY) {
+      const n = fbm(x, z, s + 5000, 4, 0.018);
+      if (n < 0.56) return { h: 0, biome: 'sky', exists: false, hazard: 0 };
+      const levels = Math.floor((n - 0.56) / 0.44 * 4);
+      return { h: levels * 0.5, biome: 'sky', exists: true, hazard: 0 };
+    }
+    // DEPTHS
+    const n = fbm(x, z, s + 9000, 4, 0.03);
+    const l = fbm(x, z, s + 12000, 2, 0.02);
+    if (n > 0.66) return { h: 2.5, biome: 'cavern', exists: true, hazard: 0, wall: true };
+    if (l > 0.74) return { h: -0.2, biome: 'lava', exists: true, hazard: 12 };
+    return { h: Math.floor(n * 3) * 0.5, biome: 'cavern', exists: true, hazard: 0 };
+  }
+
+  /* Deterministic natural object on a tile (before player removals). */
+  object(x, z, layer, t) {
+    if (!t.exists || t.wall || t.biome === 'water' || t.biome === 'lava') return null;
+    const table = OBJECT_TABLES[t.biome];
+    if (!table) return null;
+    const r = hash2(x * 7 + 3, z * 11 + 5, this.seed + 777);
+    let acc = 0;
+    for (const [type, p] of table) { acc += p; if (r < acc) return type; }
+    return null;
+  }
+
+  walkable(x, z, layer, onShip) {
+    if (Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF) return false;
+    const t = this.tile(x, z, layer);
+    if (!t.exists || t.wall) return false;
+    if (t.biome === 'water') return !!onShip;
+    return true;
+  }
+}
+
+/* ---------- A* pathfinding on the tile grid (local window) ---------- */
+function findPath(gen, layer, sx, sz, tx, tz, onShip, isBlocked, maxNodes) {
+  sx = Math.floor(sx); sz = Math.floor(sz); tx = Math.floor(tx); tz = Math.floor(tz);
+  maxNodes = maxNodes || 1800;
+  const key = (x, z) => x + ',' + z;
+  const open = [{ x: sx, z: sz, g: 0, f: 0, p: null }];
+  const seen = new Map(); seen.set(key(sx, sz), open[0]);
+  const closed = new Set();
+  let best = open[0], bestD = Infinity, expanded = 0;
+  while (open.length && expanded < maxNodes) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
+    const cur = open.splice(bi, 1)[0];
+    expanded++;
+    const d = Math.abs(cur.x - tx) + Math.abs(cur.z - tz);
+    if (d < bestD) { bestD = d; best = cur; }
+    if (cur.x === tx && cur.z === tz) { best = cur; break; }
+    closed.add(key(cur.x, cur.z));
+    const ch = gen.tile(cur.x, cur.z, layer).h;
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+      if (!dx && !dz) continue;
+      const nx = cur.x + dx, nz = cur.z + dz, k = key(nx, nz);
+      if (closed.has(k)) continue;
+      if (!gen.walkable(nx, nz, layer, onShip)) continue;
+      if (isBlocked && isBlocked(nx, nz) && !(nx === tx && nz === tz)) continue;
+      const nh = gen.tile(nx, nz, layer).h;
+      if (Math.abs(nh - ch) > 0.55) continue;            // one terrace step max
+      if (dx && dz) {                                     // no corner cutting
+        if (!gen.walkable(cur.x + dx, cur.z, layer, onShip) || !gen.walkable(cur.x, cur.z + dz, layer, onShip)) continue;
+      }
+      const g = cur.g + ((dx && dz) ? 1.414 : 1);
+      const ex = seen.get(k);
+      if (ex && ex.g <= g) continue;
+      const node = { x: nx, z: nz, g, f: g + Math.hypot(nx - tx, nz - tz), p: cur };
+      seen.set(k, node);
+      if (!ex) open.push(node); else { ex.g = g; ex.f = node.f; ex.p = cur; }
+    }
+  }
+  const path = [];
+  for (let n = best; n; n = n.p) path.push({ x: n.x + 0.5, z: n.z + 0.5 });
+  path.reverse();
+  if (path.length) path.shift();
+  return path;
+}
+
+/* ---------- Chunk: terrain mesh + object instances for one 16x16 area ---------- */
+class Chunk {
+  constructor(world, cx, cz, layer) {
+    this.world = world; this.cx = cx; this.cz = cz; this.layer = layer;
+    this.group = new THREE.Group();
+    this.group.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
+    this.objects = new Map();     // "x,z" -> {type, index, kind}
+    this.instanced = {};          // type -> InstancedMesh
+    this.build();
+  }
+
+  build() {
+    const gen = this.world.gen, layer = this.layer;
+    const pos = [], col = [], nrm = [];
+    const wpos = [];
+    const c = new THREE.Color();
+    const pushQuad = (a, b, cc, d, n, color, arr) => {
+      const t = arr || pos;
+      t.push(...a, ...b, ...cc, ...a, ...cc, ...d);
+      if (arr === wpos) return;
+      for (let i = 0; i < 6; i++) { nrm.push(...n); col.push(color.r, color.g, color.b); }
+    };
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      const wx = this.cx * CHUNK_SIZE + lx, wz = this.cz * CHUNK_SIZE + lz;
+      const t = gen.tile(wx, wz, layer);
+      if (!t.exists) continue;
+      const b = BIOMES[t.biome];
+      const shade = hash2(wx, wz, 31) * 0.08 - 0.04;
+      c.setHex(((wx + wz) & 1) ? b.ground : b.alt);
+      c.offsetHSL(0, 0, shade);
+      const h = t.h;
+      // top face
+      pushQuad([lx, h, lz], [lx, h, lz + 1], [lx + 1, h, lz + 1], [lx + 1, h, lz], [0, 1, 0], c);
+      // cliff walls toward lower neighbours (and sky-island undersides)
+      const wc = new THREE.Color(b.wall);
+      const neighbours = [[1, 0, [1, 0, 0]], [-1, 0, [-1, 0, 0]], [0, 1, [0, 0, 1]], [0, -1, [0, 0, -1]]];
+      for (const [dx, dz, n] of neighbours) {
+        const nt = gen.tile(wx + dx, wz + dz, layer);
+        const nh = nt.exists ? nt.h : (layer === LAYERS.SKY ? h - 3 : h);
+        if (nh >= h) continue;
+        const x0 = lx + (dx === 1 ? 1 : 0), x1 = lx + (dx === -1 ? 0 : 1);
+        const z0 = lz + (dz === 1 ? 1 : 0), z1 = lz + (dz === -1 ? 0 : 1);
+        if (dx !== 0) {
+          const xx = dx === 1 ? lx + 1 : lx;
+          if (dx === 1) pushQuad([xx, nh, lz], [xx, h, lz], [xx, h, lz + 1], [xx, nh, lz + 1], n, wc);
+          else pushQuad([xx, nh, lz + 1], [xx, h, lz + 1], [xx, h, lz], [xx, nh, lz], n, wc);
+        } else {
+          const zz = dz === 1 ? lz + 1 : lz;
+          if (dz === 1) pushQuad([lx + 1, nh, zz], [lx + 1, h, zz], [lx, h, zz], [lx, nh, zz], n, wc);
+          else pushQuad([lx, nh, zz], [lx, h, zz], [lx + 1, h, zz], [lx + 1, nh, zz], n, wc);
+        }
+        void x0; void x1; void z0; void z1;
+      }
+      if (t.biome === 'water') pushQuad([lx, 0, lz], [lx, 0, lz + 1], [lx + 1, 0, lz + 1], [lx + 1, 0, lz], [0, 1, 0], c, wpos);
+      if (t.biome === 'lava') pushQuad([lx, 0.05, lz], [lx, 0.05, lz + 1], [lx + 1, 0.05, lz + 1], [lx + 1, 0.05, lz], [0, 1, 0], c, wpos);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    this.terrain = new THREE.Mesh(geo, this.world.terrainMat);
+    this.terrain.receiveShadow = true; this.terrain.castShadow = true;
+    this.terrain.userData.chunk = this;
+    this.group.add(this.terrain);
+    if (wpos.length) {
+      const wg = new THREE.BufferGeometry();
+      wg.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+      wg.computeVertexNormals();
+      const isLava = layer === LAYERS.DEPTHS;
+      this.water = new THREE.Mesh(wg, isLava ? this.world.lavaMat : this.world.waterMat);
+      this.water.userData.chunk = this;
+      this.group.add(this.water);
+    }
+    this.buildObjects();
+  }
+
+  buildObjects() {
+    const gen = this.world.gen, layer = this.layer;
+    const counts = {};
+    const list = [];
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      const wx = this.cx * CHUNK_SIZE + lx, wz = this.cz * CHUNK_SIZE + lz;
+      const key = layer + ':' + wx + ',' + wz;
+      if (this.world.removed.has(key)) continue;       // player already harvested it
+      if (this.world.isOccupied(wx, wz, layer)) continue; // a building stands here
+      const t = gen.tile(wx, wz, layer);
+      const type = gen.object(wx, wz, layer, t);
+      if (!type) continue;
+      list.push({ type, lx, lz, wx, wz, h: t.h });
+      counts[type] = (counts[type] || 0) + 1;
+    }
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    const idx = {};
+    for (const type in counts) {
+      const proto = this.world.protos[type];
+      const im = new THREE.InstancedMesh(proto.geometry, proto.material, counts[type]);
+      im.castShadow = true; im.receiveShadow = true;
+      im.userData.chunk = this; im.userData.type = type;
+      this.instanced[type] = im; idx[type] = 0;
+      this.group.add(im);
+    }
+    for (const o of list) {
+      const im = this.instanced[o.type];
+      const i = idx[o.type]++;
+      const r = hash2(o.wx, o.wz, 99);
+      const sc = 0.8 + r * 0.4;
+      p.set(o.lx + 0.5, o.h, o.lz + 0.5);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r * Math.PI * 2);
+      s.set(sc, sc, sc);
+      m.compose(p, q, s);
+      im.setMatrixAt(i, m);
+      this.objects.set(o.wx + ',' + o.wz, { type: o.type, index: i, wx: o.wx, wz: o.wz, h: o.h, hp: o.type === 'beast' ? 30 : 3 });
+    }
+  }
+
+  removeObject(wx, wz) {
+    const o = this.objects.get(wx + ',' + wz);
+    if (!o) return;
+    const im = this.instanced[o.type];
+    const m = new THREE.Matrix4().makeScale(0, 0, 0);
+    im.setMatrixAt(o.index, m);
+    im.instanceMatrix.needsUpdate = true;
+    this.objects.delete(wx + ',' + wz);
+  }
+
+  dispose() {
+    this.group.traverse(o => { if (o.geometry && !(o.isInstancedMesh)) o.geometry.dispose(); });
+    for (const t in this.instanced) this.instanced[t].dispose();
+    if (this.group.parent) this.group.parent.remove(this.group);
+  }
+}
+
+/* ---------- World: three layer roots + chunk streaming ---------- */
+class World {
+  constructor(scene, seed, removedSet, occupancyFn) {
+    this.scene = scene;
+    this.gen = new WorldGen(seed);
+    this.removed = removedSet;
+    this.isOccupied = occupancyFn || (() => false);
+    this.layer = LAYERS.SURFACE;
+    this.roots = {};
+    this.chunks = {};                 // layer -> Map("cx,cz" -> Chunk)
+    for (const k in LAYERS) {
+      const l = LAYERS[k];
+      this.roots[l] = new THREE.Group();
+      this.roots[l].visible = (l === this.layer);
+      this.chunks[l] = new Map();
+      scene.add(this.roots[l]);
+    }
+    this.terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.waterMat = new THREE.MeshPhongMaterial({ color: 0x2f7fa6, transparent: true, opacity: 0.72, shininess: 90, specular: 0x88ccff });
+    this.lavaMat = new THREE.MeshBasicMaterial({ color: 0xff5a1e });
+    this.protos = World.buildPrototypes();
+    this.lastCenter = null;
+  }
+
+  /* Geometry prototypes shared across all InstancedMeshes (one draw call per type per chunk). */
+  static buildPrototypes() {
+    const P = {};
+    const mk = (geo, color) => ({ geometry: geo, material: new THREE.MeshLambertMaterial({ color }) });
+    // tree: trunk + canopy merged into one geometry via groups of a simple cone atop cylinder
+    const tree = new THREE.ConeGeometry(0.42, 1.2, 6); tree.translate(0, 1.0, 0);
+    const trunk = new THREE.CylinderGeometry(0.08, 0.1, 0.5, 5); trunk.translate(0, 0.25, 0);
+    P.tree = mk(World.merge([trunk, tree], [0x6b4a2a, 0x2e6b34]), 0xffffff);
+    const sp = new THREE.ConeGeometry(0.36, 1.6, 6); sp.translate(0, 1.1, 0);
+    const spt = new THREE.CylinderGeometry(0.07, 0.09, 0.5, 5); spt.translate(0, 0.25, 0);
+    P.spruce = mk(World.merge([spt, sp], [0x3a2a1a, 0x1e3a2c]), 0xffffff);
+    const ac = new THREE.CylinderGeometry(0.55, 0.3, 0.3, 7); ac.translate(0, 1.25, 0);
+    const act = new THREE.CylinderGeometry(0.07, 0.1, 1.1, 5); act.translate(0, 0.55, 0);
+    P.acacia = mk(World.merge([act, ac], [0x6b5030, 0x6f8a2e]), 0xffffff);
+    const cac = new THREE.CylinderGeometry(0.14, 0.16, 0.9, 6); cac.translate(0, 0.45, 0);
+    const cac2 = new THREE.CylinderGeometry(0.08, 0.08, 0.4, 5); cac2.translate(0.22, 0.6, 0);
+    P.cactus = mk(World.merge([cac, cac2], [0x3f7a3a, 0x3f7a3a]), 0xffffff);
+    const rock = new THREE.DodecahedronGeometry(0.32, 0); rock.translate(0, 0.22, 0);
+    P.rock = mk(World.merge([rock], [0x8a8a8a]), 0xffffff);
+    const fib = new THREE.ConeGeometry(0.22, 0.5, 5); fib.translate(0, 0.25, 0);
+    const fib2 = new THREE.ConeGeometry(0.16, 0.4, 5); fib2.translate(0.2, 0.2, 0.1);
+    P.fiber = mk(World.merge([fib, fib2], [0xb9c25a, 0xa5b04e]), 0xffffff);
+    const ore = new THREE.OctahedronGeometry(0.3, 0); ore.translate(0, 0.3, 0);
+    const oreBase = new THREE.DodecahedronGeometry(0.28, 0); oreBase.translate(0, 0.15, 0);
+    P.ore = mk(World.merge([oreBase, ore], [0x5a5560, 0xd2a13a]), 0xffffff);
+    const cr = new THREE.OctahedronGeometry(0.26, 0); cr.translate(0, 0.45, 0); cr.scale(0.7, 1.6, 0.7);
+    P.crystal = mk(World.merge([cr], [0x7fd7ff]), 0xffffff);
+    const beast = new THREE.OctahedronGeometry(0.34, 0); beast.translate(0, 0.45, 0);
+    P.beast = mk(World.merge([beast], [0x9a3a2a]), 0xffffff);
+    for (const k in P) P[k].material.vertexColors = true;
+    return P;
+  }
+
+  /* Merge geometries with per-part flat colors into one vertex-colored BufferGeometry. */
+  static merge(geos, colors) {
+    const pos = [], nrm = [], col = [];
+    const c = new THREE.Color();
+    geos.forEach((g, gi) => {
+      const ng = g.index ? g.toNonIndexed() : g;
+      const p = ng.attributes.position.array, n = ng.attributes.normal.array;
+      c.setHex(colors[gi]);
+      for (let i = 0; i < p.length; i += 3) { pos.push(p[i], p[i + 1], p[i + 2]); nrm.push(n[i], n[i + 1], n[i + 2]); col.push(c.r, c.g, c.b); }
+    });
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    return out;
+  }
+
+  setLayer(layer) {
+    this.layer = layer;
+    for (const l in this.roots) this.roots[l].visible = (l === layer);
+    this.lastCenter = null;
+  }
+
+  /* Called each frame with the player's world position. Streams chunks
+     in and out around the player on the ACTIVE layer only; inactive
+     layers keep their chunks (cheap) until the player moves far away. */
+  update(px, pz) {
+    const cx = Math.floor(px / CHUNK_SIZE), cz = Math.floor(pz / CHUNK_SIZE);
+    if (this.lastCenter && this.lastCenter.x === cx && this.lastCenter.z === cz) return;
+    this.lastCenter = { x: cx, z: cz };
+    for (const l in this.chunks) {
+      const map = this.chunks[l], root = this.roots[l];
+      const radius = (l === this.layer) ? VIEW_RADIUS : 1;   // keep a small halo on inactive layers
+      // unload
+      for (const [key, chunk] of map) {
+        if (Math.abs(chunk.cx - cx) > radius || Math.abs(chunk.cz - cz) > radius) { chunk.dispose(); map.delete(key); }
+      }
+      if (l !== this.layer) continue;
+      // load (spiral order so nearest chunks appear first)
+      for (let r = 0; r <= radius; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        const key = (cx + dx) + ',' + (cz + dz);
+        if (map.has(key)) continue;
+        const ch = new Chunk(this, cx + dx, cz + dz, l);
+        map.set(key, ch); root.add(ch.group);
+      }
+    }
+  }
+
+  chunkAt(wx, wz, layer) {
+    return this.chunks[layer || this.layer].get(Math.floor(wx / CHUNK_SIZE) + ',' + Math.floor(wz / CHUNK_SIZE));
+  }
+  objectAt(wx, wz, layer) {
+    const ch = this.chunkAt(wx, wz, layer);
+    return ch ? ch.objects.get(Math.floor(wx) + ',' + Math.floor(wz)) : null;
+  }
+  removeObjectAt(wx, wz, layer) {
+    const ch = this.chunkAt(wx, wz, layer); if (ch) ch.removeObject(Math.floor(wx), Math.floor(wz));
+    this.removed.add((layer || this.layer) + ':' + Math.floor(wx) + ',' + Math.floor(wz));
+  }
+  rebuildChunkAt(wx, wz, layer) {
+    layer = layer || this.layer;
+    const map = this.chunks[layer];
+    const key = Math.floor(wx / CHUNK_SIZE) + ',' + Math.floor(wz / CHUNK_SIZE);
+    const old = map.get(key); if (!old) return;
+    old.dispose(); map.delete(key);
+    const ch = new Chunk(this, old.cx, old.cz, layer); map.set(key, ch); this.roots[layer].add(ch.group);
+  }
+  heightAt(x, z, layer) {
+    const t = this.gen.tile(Math.floor(x), Math.floor(z), layer || this.layer);
+    if (!t.exists) return -20;
+    return t.biome === 'water' ? 0 : t.h;
+  }
+  terrainMeshes() {
+    const out = [];
+    for (const ch of this.chunks[this.layer].values()) { out.push(ch.terrain); if (ch.water) out.push(ch.water); }
+    return out;
+  }
+  /* Nearest walkable tile to (x,z) on a layer - used for layer transitions. */
+  nearestWalkable(x, z, layer, onShip) {
+    x = Math.floor(x); z = Math.floor(z);
+    for (let r = 0; r < 64; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      if (this.gen.walkable(x + dx, z + dz, layer, onShip)) return { x: x + dx + 0.5, z: z + dz + 0.5 };
+    }
+    return { x: x + 0.5, z: z + 0.5 };
+  }
+}
+
+if (typeof module !== 'undefined') module.exports = { hash2, fbm, WorldGen, findPath, BIOMES, LAYERS, CHUNK_SIZE, RESOURCE_YIELD };
+
+</script>
+<script>
+/* =====================================================================
+   BIOMES OF ETERNITY - entities.js
+   Geometric characters (circle / diamond / square) with animated eyes,
+   attachable status ranks, health bars and equipment. Also the building
+   factory that produces biome-specific architecture from primitives.
+   No textures, no sprites, no emoji: everything is geometry.
+   ===================================================================== */
+
+const SHAPES = {
+  circle:  { desc: 'Citizen / Gatherer' },
+  diamond: { desc: 'Commander / Noble' },
+  square:  { desc: 'Guard / Defender' },
+  triangle:{ desc: 'Beast: Prowler' },
+  pentagon:{ desc: 'Beast: Sandback' },
+  hexagon: { desc: 'Beast: Frostfang' },
+  star:    { desc: 'Beast: Bogmaw' },
+  cross:   { desc: 'Beast: Cave Lurker' },
+};
+/* Beast roster: one distinct silhouette per habitat. */
+const BEASTS = {
+  forest:  { shape: 'triangle', name: 'Prowler',     hp: 35, dmg: 6,  color: 0x7a4a2a, speed: 3.0 },
+  plains:  { shape: 'triangle', name: 'Prowler',     hp: 35, dmg: 6,  color: 0x8a6a3a, speed: 3.0 },
+  desert:  { shape: 'pentagon', name: 'Sandback',    hp: 50, dmg: 8,  color: 0xc9a050, speed: 2.4 },
+  arctic:  { shape: 'hexagon',  name: 'Frostfang',   hp: 45, dmg: 9,  color: 0xbcd6e6, speed: 3.2 },
+  savanna: { shape: 'pentagon', name: 'Dustmane',    hp: 55, dmg: 7,  color: 0xb08a3a, speed: 3.4 },
+  swamp:   { shape: 'star',     name: 'Bogmaw',      hp: 60, dmg: 10, color: 0x5a7a3a, speed: 2.2 },
+  sky:     { shape: 'star',     name: 'Windwisp',    hp: 30, dmg: 5,  color: 0xcfe6ff, speed: 3.8 },
+  cavern:  { shape: 'cross',    name: 'Cave Lurker', hp: 70, dmg: 12, color: 0x6a4a7a, speed: 2.6 },
+};
+function polygonShape(n, r, inner) {
+  const sh = new THREE.Shape();
+  for (let i = 0; i < n * (inner ? 2 : 1); i++) {
+    const a = -Math.PI / 2 + i * Math.PI / (inner ? n : n / 2);
+    const rr = inner && i % 2 ? inner : r;
+    const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+    if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
+  }
+  sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.16, bevelEnabled: false });
+  g.translate(0, 0, -0.08);
+  return g;
+}
+
+/* Shared geometries (built once). */
+const EntityGeo = {
+  circle:  new THREE.CylinderGeometry(0.36, 0.36, 0.14, 24),
+  diamond: new THREE.OctahedronGeometry(0.42, 0),
+  square:  new THREE.BoxGeometry(0.62, 0.62, 0.16),
+  triangle: polygonShape(3, 0.46),
+  pentagon: polygonShape(5, 0.42),
+  hexagon:  polygonShape(6, 0.42),
+  star:     polygonShape(5, 0.5, 0.24),
+  cross:    (() => { const a = new THREE.BoxGeometry(0.8, 0.26, 0.16), b = new THREE.BoxGeometry(0.26, 0.8, 0.16); const p = [], n = []; for (const g of [a, b]) { const ng = g.toNonIndexed(); p.push(...ng.attributes.position.array); n.push(...ng.attributes.normal.array); } const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(n, 3)); return out; })(),
+  eye:     new THREE.SphereGeometry(0.075, 10, 8),
+  pupil:   new THREE.SphereGeometry(0.036, 8, 6),
+  bar:     new THREE.PlaneGeometry(1, 1),
+  rank:    new THREE.ConeGeometry(0.08, 0.16, 4),
+  spear:   new THREE.CylinderGeometry(0.02, 0.02, 1.0, 5),
+  spearTip:new THREE.ConeGeometry(0.06, 0.16, 4),
+  sling:   new THREE.TorusGeometry(0.1, 0.02, 6, 12),
+  knife:   new THREE.BoxGeometry(0.05, 0.3, 0.02),
+  shield:  new THREE.BoxGeometry(0.28, 0.34, 0.04),
+  ring:    new THREE.RingGeometry(0.42, 0.5, 24),
+};
+EntityGeo.circle.rotateX(Math.PI / 2);      // face the camera as a coin
+EntityGeo.diamond.scale(1, 1, 0.35);
+const EyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });   // pure black eyes
+const PupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+const BarBgMat = new THREE.MeshBasicMaterial({ color: 0x1a1512, transparent: true, opacity: 0.85, depthTest: false });
+const GearMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3a });
+const IronMat = new THREE.MeshLambertMaterial({ color: 0xb8bcc2 });
+
+class Entity {
+  /* opts: {shape, color, name, hp, faction, role, rank, gear:[...]} */
+  constructor(opts) {
+    Object.assign(this, { shape: 'circle', color: 0xe8d8b0, name: 'Entity', hp: 30, faction: 'player', role: 'idle', rank: 0, gear: [], speed: 3.2 }, opts);
+    this.maxHp = this.hp;
+    this.x = opts.x || 0; this.z = opts.z || 0; this.y = 0;
+    this.layer = opts.layer || 'surface';
+    this.path = []; this.target = null; this.dead = false;
+    this.blink = Math.random() * 4; this.blinkT = 0;
+    this.lookX = 0; this.lookY = 0;
+    this.attackT = 0; this.bob = Math.random() * 6;
+    this.build();
+  }
+
+  build() {
+    this.root = new THREE.Group();
+    this.bill = new THREE.Group();        // billboarded toward the fixed isometric camera
+    this.root.add(this.bill);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: this.color, emissive: this.faction === 'enemy' ? 0x330000 : 0x000000 });
+    this.body = new THREE.Mesh(EntityGeo[this.shape], bodyMat);
+    this.body.castShadow = true; this.body.receiveShadow = false;
+    this.body.position.y = 0.5;
+    this.bill.add(this.body);
+    // eyes sit on the camera-facing face
+    this.eyes = [];
+    for (const sx of [-0.13, 0.13]) {
+      const e = new THREE.Mesh(EntityGeo.eye, EyeMat);
+      e.position.set(sx, 0.56, this.shape === 'diamond' ? 0.16 : 0.1);
+      const p = new THREE.Mesh(EntityGeo.pupil, PupilMat);
+      p.position.set(0, 0, 0.06);
+      e.add(p);
+      this.bill.add(e); this.eyes.push({ eye: e, pupil: p });
+    }
+    // health bar
+    this.barBg = new THREE.Mesh(EntityGeo.bar, BarBgMat);
+    this.barBg.scale.set(0.9, 0.09, 1); this.barBg.position.set(0, 1.12, 0.05);
+    this.barFg = new THREE.Mesh(EntityGeo.bar, new THREE.MeshBasicMaterial({ color: this.faction === 'enemy' ? 0xb8402a : 0x8fcf6a, depthTest: false }));
+    this.barFg.position.set(0, 1.12, 0.06);
+    this.barFg.scale.set(0.86, 0.06, 1);
+    this.bill.add(this.barBg); this.bill.add(this.barFg);
+    this.barBg.renderOrder = 10; this.barFg.renderOrder = 11;
+    if (this.faction === 'enemy') {
+      // numeric health readout drawn on a tiny canvas texture, floated above the bar
+      this.labelCanvas = document.createElement('canvas'); this.labelCanvas.width = 128; this.labelCanvas.height = 40;
+      this.labelTex = new THREE.CanvasTexture(this.labelCanvas);
+      this.label = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.labelTex, depthTest: false, transparent: true }));
+      this.label.scale.set(1.3, 0.4, 1); this.label.position.set(0, 1.5, 0.05); this.label.renderOrder = 12;
+      this.bill.add(this.label);
+    }
+    // selection / faction ring on the ground
+    this.ring = new THREE.Mesh(EntityGeo.ring, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.0, side: THREE.DoubleSide }));
+    this.ring.rotation.x = -Math.PI / 2; this.ring.position.y = 0.02;
+    this.root.add(this.ring);
+    this.setRank(this.rank);
+    this.setGear(this.gear);
+    this.updateBar();
+  }
+
+  /* Rank marks: small stacked chevrons above the health bar. */
+  setRank(n) {
+    this.rank = n;
+    if (this.rankGroup) this.bill.remove(this.rankGroup);
+    this.rankGroup = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: n >= 3 ? 0xf0c040 : 0xd9c7a0 });
+    for (let i = 0; i < Math.min(n, 4); i++) {
+      const m = new THREE.Mesh(EntityGeo.rank, mat);
+      m.position.set((i - (Math.min(n, 4) - 1) / 2) * 0.2, 1.3, 0.05);
+      this.rankGroup.add(m);
+    }
+    this.bill.add(this.rankGroup);
+  }
+
+  /* Equipment visuals: 'spear' | 'sling' | 'knife' | 'shield' */
+  setGear(list) {
+    this.gear = list || [];
+    if (this.gearGroup) this.bill.remove(this.gearGroup);
+    this.gearGroup = new THREE.Group();
+    for (const g of this.gear) {
+      if (g === 'spear') {
+        const s = new THREE.Mesh(EntityGeo.spear, GearMat); s.position.set(0.42, 0.55, 0.05); s.rotation.z = 0.15;
+        const t = new THREE.Mesh(EntityGeo.spearTip, IronMat); t.position.y = 0.55; s.add(t);
+        this.gearGroup.add(s);
+      } else if (g === 'sling') {
+        const s = new THREE.Mesh(EntityGeo.sling, GearMat); s.position.set(-0.42, 0.42, 0.05); this.gearGroup.add(s);
+      } else if (g === 'knife') {
+        const k = new THREE.Mesh(EntityGeo.knife, IronMat); k.position.set(0.4, 0.4, 0.06); k.rotation.z = -0.5; this.gearGroup.add(k);
+      } else if (g === 'shield') {
+        const s = new THREE.Mesh(EntityGeo.shield, GearMat); s.position.set(-0.42, 0.5, 0.05); this.gearGroup.add(s);
+      }
+    }
+    this.bill.add(this.gearGroup);
+  }
+
+  updateBar() {
+    const f = Math.max(0, this.hp / this.maxHp);
+    this.barFg.scale.x = 0.86 * f;
+    this.barFg.position.x = -0.43 * (1 - f);
+    const vis = f < 1 || this.faction === 'enemy';
+    this.barFg.visible = vis; this.barBg.visible = vis;
+    if (this.label) {
+      const c = this.labelCanvas.getContext('2d'); c.clearRect(0, 0, 128, 40);
+      c.font = 'bold 22px monospace'; c.textAlign = 'center'; c.fillStyle = '#e6dcc3'; c.strokeStyle = '#000'; c.lineWidth = 4;
+      const txt = this.name + ' ' + Math.ceil(this.hp) + '/' + this.maxHp;
+      c.font = 'bold ' + (txt.length > 14 ? 16 : 20) + 'px monospace';
+      c.strokeText(txt, 64, 28); c.fillText(txt, 64, 28); this.labelTex.needsUpdate = true;
+    }
+  }
+
+  damage(n) {
+    if (this.dead) return;
+    this.hp -= n; this.hitFlash = 0.15;
+    if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+    this.updateBar();
+  }
+
+  setSelected(v) { this.ring.material.opacity = v ? 0.9 : 0; }
+
+  /* Animate eyes: blink, look toward movement/target, breathe bob. */
+  animate(dt, camQuat, lookTarget) {
+    this.bob += dt * 3;
+    this.bill.quaternion.copy(camQuat);
+    const moving = this.path.length > 0;
+    this.body.position.y = 0.5 + (moving ? Math.abs(Math.sin(this.bob * 2.2)) * 0.12 : Math.sin(this.bob) * 0.02);
+    for (const e of this.eyes) e.eye.position.y = this.body.position.y + 0.06;
+    // pupils drift toward look target (screen-space approximation)
+    let lx = 0, ly = 0;
+    if (lookTarget) { lx = Math.max(-1, Math.min(1, (lookTarget.x - this.x) * 0.2)); ly = Math.max(-1, Math.min(1, (this.z - lookTarget.z) * 0.2)); }
+    else if (moving) { const n = this.path[0]; lx = Math.sign(n.x - this.x) * 0.6; ly = Math.sign(this.z - n.z) * 0.3; }
+    this.lookX += (lx - this.lookX) * dt * 6; this.lookY += (ly - this.lookY) * dt * 6;
+    for (const e of this.eyes) e.pupil.position.set(this.lookX * 0.035, this.lookY * 0.03, 0.06);
+    // blink
+    this.blink -= dt;
+    if (this.blink <= 0) { this.blinkT = 0.16; this.blink = 2.5 + Math.random() * 4; }
+    if (this.blinkT > 0) { this.blinkT -= dt; const s = Math.abs(Math.sin((this.blinkT / 0.16) * Math.PI)); for (const e of this.eyes) e.eye.scale.y = Math.max(0.08, 1 - s); }
+    else for (const e of this.eyes) e.eye.scale.y = 1;
+    // hit flash / attack lunge
+    if (this.hitFlash > 0) { this.hitFlash -= dt; this.body.material.emissive.setHex(0x883322); }
+    else this.body.material.emissive.setHex(this.faction === 'enemy' ? 0x330000 : 0x000000);
+    if (this.attackT > 0) { this.attackT -= dt; this.body.scale.setScalar(1 + this.attackT * 0.6); } else this.body.scale.setScalar(1);
+    this.root.position.set(this.x, this.y, this.z);
+  }
+
+  /* Follow the current path at this.speed; returns true when arrived. */
+  step(dt, world) {
+    if (!this.path.length) return true;
+    const n = this.path[0];
+    const dx = n.x - this.x, dz = n.z - this.z;
+    const d = Math.hypot(dx, dz);
+    const mv = this.speed * dt;
+    if (d <= mv) { this.x = n.x; this.z = n.z; this.path.shift(); }
+    else { this.x += dx / d * mv; this.z += dz / d * mv; }
+    const targetY = world.heightAt(this.x, this.z, this.layer);
+    this.y += (targetY - this.y) * Math.min(1, dt * 14);
+    return this.path.length === 0;
+  }
+}
+
+/* =====================================================================
+   BUILDINGS - biome-specific architecture out of primitives.
+   arch: 'thatch' (forest/plains), 'adobe' (desert), 'igloo'/'lodge' (arctic),
+         'stilt' (water/swamp). Structures use the SQUARE language.
+   ===================================================================== */
+const BUILD_RECIPES = {
+  townhall: { name: "Mayor's Town Hall", cost: { wood: 20, stone: 10, fiber: 5 }, size: 3, hp: 400, tier: 0, desc: 'Founds your settlement. Attracts settlers.' },
+  house:    { name: 'House',            cost: { wood: 8, stone: 2, fiber: 3 },  size: 1, hp: 120, tier: 0, desc: 'Houses one settler.' },
+  farm:     { name: 'Farm Plot',        cost: { wood: 4, fiber: 6 },            size: 2, hp: 60,  tier: 1, desc: 'Farmers grow food here (+coins over time).' },
+  storehouse:{ name: 'Storehouse',      cost: { wood: 14, stone: 6 },           size: 2, hp: 200, tier: 1, desc: 'Haulers deposit here. +50 stock cap.' },
+  wall:     { name: 'Palisade',         cost: { wood: 5 },                      size: 1, hp: 150, tier: 1, desc: 'Blocks raiders.' },
+  tower:    { name: 'Watch Tower',      cost: { wood: 12, stone: 12 },          size: 1, hp: 220, tier: 2, desc: 'Guards posted here shoot raiders.' },
+  dock:     { name: 'Dock',             cost: { wood: 25, fiber: 10 },          size: 2, hp: 180, tier: 2, desc: 'Trade post. Build ships here (needs shoreline).' },
+  ship:     { name: 'Longship',         cost: { wood: 40, fiber: 20, coins: 30 }, size: 1, hp: 300, tier: 3, desc: 'Sail the ocean. Ram enemy vessels.' },
+  forge:    { name: 'Forge',            cost: { stone: 20, ore: 8 },            size: 2, hp: 240, tier: 3, desc: 'Iron gear for guards. +defense.' },
+  shrine:   { name: 'Sky Shrine',       cost: { stone: 30, crystal: 4 },        size: 2, hp: 260, tier: 4, desc: 'Passive +20% defense. Kingdom EXP bonus.' },
+};
+
+function buildingMesh(type, arch, level) {
+  const g = new THREE.Group();
+  const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const add = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (ry) m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  const R = BUILD_RECIPES[type];
+  const s = R.size;
+  const palette = {
+    thatch: { wall: 0xc9a870, roof: 0x8a6a2a, trim: 0x5a3a1a },
+    adobe:  { wall: 0xd9a86a, roof: 0xb88848, trim: 0x8a5a2a },
+    igloo:  { wall: 0xe8f0f5, roof: 0xd0dde6, trim: 0x2e3a3c },
+    stilt:  { wall: 0x9a7a4a, roof: 0x5e4a2a, trim: 0x3a2a1a },
+  }[arch] || { wall: 0xc9a870, roof: 0x8a6a2a, trim: 0x5a3a1a };
+
+  if (type === 'wall') {
+    add(new THREE.BoxGeometry(1, 1.4, 0.3), lam(palette.trim), 0, 0.7, 0);
+    for (let i = -1; i <= 1; i++) add(new THREE.ConeGeometry(0.12, 0.3, 4), lam(palette.trim), i * 0.33, 1.5, 0);
+    return g;
+  }
+  if (type === 'ship') {
+    add(new THREE.BoxGeometry(1.8, 0.35, 0.7), lam(0x6b4a2a), 0, 0.2, 0);
+    add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), lam(0x3a2a1a), 0, 1.0, 0);
+    const sail = add(new THREE.PlaneGeometry(0.9, 1.0), new THREE.MeshLambertMaterial({ color: 0xe8d8b0, side: THREE.DoubleSide }), 0, 1.1, 0);
+    sail.rotation.y = Math.PI / 2;
+    add(new THREE.ConeGeometry(0.2, 0.5, 4), lam(0x8a6a3a), 1.0, 0.25, 0, 0).rotation.z = -Math.PI / 2;
+    return g;
+  }
+  if (type === 'farm') {
+    for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(0.4, 0.1, 1.8), lam(0x6a4a2a), -0.75 + i * 0.5, 0.05, 0);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) add(new THREE.ConeGeometry(0.1, 0.35, 4), lam(0x8fbf4a), -0.75 + i * 0.5, 0.25, -0.6 + j * 0.4);
+    return g;
+  }
+  if (type === 'tower') {
+    add(new THREE.CylinderGeometry(0.35, 0.45, 2.4, 6), lam(palette.trim), 0, 1.2, 0);
+    add(new THREE.CylinderGeometry(0.55, 0.55, 0.25, 6), lam(palette.wall), 0, 2.5, 0);
+    add(new THREE.ConeGeometry(0.6, 0.6, 6), lam(palette.roof), 0, 2.95, 0);
+    return g;
+  }
+  if (type === 'dock') {
+    add(new THREE.BoxGeometry(2, 0.15, 2), lam(palette.wall), 0, 0.5, 0);
+    for (const [x, z] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) add(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6), lam(palette.trim), x, 0.1, z);
+    add(new THREE.BoxGeometry(0.8, 0.8, 0.8), lam(palette.roof), -0.4, 0.95, -0.4);
+    return g;
+  }
+  if (type === 'forge') {
+    add(new THREE.BoxGeometry(1.6, 1.0, 1.6), lam(0x5a5560), 0, 0.5, 0);
+    add(new THREE.CylinderGeometry(0.2, 0.28, 1.2, 6), lam(0x3a3540), 0.4, 1.4, 0.4);
+    add(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff6a2a }), -0.4, 0.6, 0.85);
+    return g;
+  }
+  if (type === 'shrine') {
+    add(new THREE.CylinderGeometry(1.0, 1.1, 0.3, 8), lam(0xcfd8e0), 0, 0.15, 0);
+    for (let i = 0; i < 4; i++) add(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), lam(0xe8eef2), Math.cos(i * Math.PI / 2) * 0.7, 1.0, Math.sin(i * Math.PI / 2) * 0.7);
+    const c = add(new THREE.OctahedronGeometry(0.3, 0), new THREE.MeshBasicMaterial({ color: 0x9fe8ff }), 0, 1.6, 0);
+    c.userData.spin = true;
+    return g;
+  }
+  // --- dwellings: townhall, house, storehouse ---
+  const w = s === 3 ? 2.6 : s === 2 ? 1.7 : 0.95;
+  const h = type === 'townhall' ? 1.6 : 0.9;
+  if (arch === 'adobe') {
+    add(new THREE.BoxGeometry(w, h, w), lam(palette.wall), 0, h / 2, 0);
+    add(new THREE.BoxGeometry(w * 0.7, 0.3, w * 0.7), lam(palette.roof), 0, h + 0.15, 0);
+    add(new THREE.BoxGeometry(0.25, 0.4, 0.05), lam(palette.trim), 0, 0.2, w / 2 + 0.01);
+    for (let i = 0; i < 3; i++) add(new THREE.CylinderGeometry(0.04, 0.04, 0.3, 5), lam(palette.trim), -w / 3 + i * w / 3, h - 0.1, w / 2 + 0.1).rotation.x = Math.PI / 2;
+  } else if (arch === 'igloo') {
+    if (type === 'house' && (level || 0) % 2 === 0) {
+      const d = add(new THREE.SphereGeometry(w * 0.6, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), lam(palette.wall), 0, 0, 0);
+      add(new THREE.CylinderGeometry(0.28, 0.28, 0.4, 8), lam(palette.wall), 0, 0.2, w * 0.5).rotation.x = Math.PI / 2;
+      void d;
+    } else {   // dark spruce timber lodge
+      add(new THREE.BoxGeometry(w, h, w), lam(0x3a2a1c), 0, h / 2, 0);
+      const roof = add(new THREE.ConeGeometry(w * 0.85, h * 0.8, 4), lam(0x241a12), 0, h + h * 0.4, 0);
+      roof.rotation.y = Math.PI / 4;
+      add(new THREE.BoxGeometry(0.2, 0.5, 0.2), lam(0x8a8a90), w * 0.3, h + h * 0.5, w * 0.3);
+    }
+  } else if (arch === 'stilt') {
+    add(new THREE.BoxGeometry(w + 0.4, 0.12, w + 0.4), lam(palette.wall), 0, 0.55, 0);
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) add(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 5), lam(palette.trim), x * w / 2, 0.1, z * w / 2);
+    add(new THREE.BoxGeometry(w * 0.85, h * 0.8, w * 0.85), lam(palette.roof), 0, 0.61 + h * 0.4, 0);
+    const roof = add(new THREE.ConeGeometry(w * 0.75, 0.6, 4), lam(palette.trim), 0, 0.61 + h * 0.8 + 0.3, 0);
+    roof.rotation.y = Math.PI / 4;
+    add(new THREE.BoxGeometry(0.4, 0.06, 1.2), lam(palette.wall), 0, 0.5, w / 2 + 0.7);
+  } else {  // thatch and timber
+    add(new THREE.BoxGeometry(w, h, w), lam(palette.wall), 0, h / 2, 0);
+    for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) add(new THREE.BoxGeometry(0.1, h, 0.1), lam(palette.trim), x, h / 2, w / 2 - 0.05);
+    const roof = add(new THREE.ConeGeometry(w * 0.82, h * 0.7, 4), lam(palette.roof), 0, h + h * 0.35, 0);
+    roof.rotation.y = Math.PI / 4;
+    add(new THREE.BoxGeometry(0.28, 0.45, 0.05), lam(palette.trim), 0, 0.22, w / 2 + 0.01);
+    if (type === 'townhall') { const b = add(new THREE.BoxGeometry(0.06, 1.2, 0.06), lam(palette.trim), 0, h + 1.2, 0); const f = add(new THREE.PlaneGeometry(0.5, 0.3), new THREE.MeshBasicMaterial({ color: 0xc0392b, side: THREE.DoubleSide }), 0.3, h + 1.6, 0); f.userData.flag = true; void b; }
+  }
+  return g;
+}
+
+if (typeof module !== 'undefined') module.exports = { BUILD_RECIPES, BEASTS };
+
+</script>
+<script>
+/* =====================================================================
+   BIOMES OF ETERNITY - game.js
+   Three.js scene, isometric camera, lighting + shadow pipeline, and every
+   gameplay loop: movement, gathering, building, combat, colony automation,
+   kingdom progression, alliances, naval travel, offline defense.
+
+   Architecture: `Game` is a plain object holding all state; ui.js reads it
+   and calls the public methods at the bottom of this file. Persistence is
+   a single JSON blob in localStorage (see save/load). A NetAdapter stub
+   defines the message surface a real server or PeerJS mesh would use.
+   ===================================================================== */
+
+const SAVE_PREFIX = 'boe_save_v3:';   // one world per account: boe_save_v3:<email>
+let SAVE_KEY = SAVE_PREFIX + 'guest';
+function saveKeyFor(user) { return SAVE_PREFIX + ((user && user.email) ? user.email.toLowerCase() : 'guest'); }
+const DAY_LENGTH = 240;          // seconds per in-game day
+const TERRITORY_RADIUS = 50;     // unit buffer around a Town Hall
+const RENAME_COOLDOWN = 24 * 3600 * 1000;
+const OFFLINE_ARMOR = 2.0;       // defense multiplier while the owner is offline
+
+const STARTER_GEAR = { forest: ['spear'], plains: ['sling'], desert: ['knife'], arctic: ['spear', 'shield'], savanna: ['sling'], swamp: ['knife'], water: ['spear'], sky: ['spear'], cavern: ['knife'] };
+/* Hotbar weapons: slot 1 is always your fists. Fists barely scratch anything -
+   equip a real weapon (keys 1-5) to deal meaningful damage. */
+const WEAPONS = {
+  fists:  { name: 'Fists',      dmg: 2,  reach: 1.2, gear: [] },
+  spear:  { name: 'Spear',      dmg: 12, reach: 1.7, gear: ['spear'] },
+  sling:  { name: 'Sling',      dmg: 8,  reach: 4.5, gear: ['sling'] },
+  knife:  { name: 'Bone Knife', dmg: 10, reach: 1.3, gear: ['knife'] },
+  shield: { name: 'Shield',     dmg: 2,  reach: 1.2, gear: ['shield'], guard: 0.5 },
+  ironspear: { name: 'Iron Spear', dmg: 20, reach: 1.8, gear: ['spear'] },
+};
+const SEASON_PASS = [
+  { tier: 1, exp: 0,    reward: 'Farm Plot, Storehouse, Palisade', defense: 1.0 },
+  { tier: 2, exp: 120,  reward: 'Watch Tower, Dock', defense: 1.1 },
+  { tier: 3, exp: 320,  reward: 'Longship, Forge', defense: 1.2 },
+  { tier: 4, exp: 700,  reward: 'Sky Shrine', defense: 1.35 },
+  { tier: 5, exp: 1300, reward: 'Commander rank for guards', defense: 1.5 },
+  { tier: 6, exp: 2200, reward: 'Raid capacity +2', defense: 1.65 },
+  { tier: 7, exp: 3500, reward: 'Naval ram damage x2', defense: 1.8 },
+  { tier: 8, exp: 5200, reward: 'Territory radius +10', defense: 2.0 },
+];
+const QUESTS = [
+  { id: 'gather', title: 'First harvest', desc: 'Gather 20 wood, 10 stone and 5 fiber.', check: g => g.state.inv.wood >= 20 && g.state.inv.stone >= 10 && g.state.inv.fiber >= 5, exp: 40 },
+  { id: 'hall', title: 'Found a settlement', desc: "Build the Mayor's Town Hall (press B).", check: g => g.buildings.some(b => b.type === 'townhall'), exp: 80 },
+  { id: 'name', title: 'Name your town', desc: 'Click the town name to rename it.', check: g => g.state.townNamed, exp: 20 },
+  { id: 'houses', title: 'Grow', desc: 'Build 3 houses to attract settlers.', check: g => g.buildings.filter(b => b.type === 'house').length >= 3, exp: 60 },
+  { id: 'assign', title: 'Put them to work', desc: 'Assign a settler to gather (click a settler).', check: g => g.npcs.some(n => n.role === 'gather'), exp: 40 },
+  { id: 'guard', title: 'Night watch', desc: 'Assign a guard. Raiders come at night.', check: g => g.npcs.some(n => n.role === 'guard'), exp: 60 },
+  { id: 'hunt', title: 'Monster hunt', desc: 'Slay 3 beasts for coins.', check: g => g.state.stats.beasts >= 3, exp: 80 },
+  { id: 'layers', title: 'Ascend and descend', desc: 'Visit the Sky and the Depths (layer switcher).', check: g => g.state.stats.visitedSky && g.state.stats.visitedDepths, exp: 100 },
+  { id: 'ally', title: 'Diplomacy', desc: 'Form an alliance with a neighbouring colony (press F).', check: g => g.state.rivals.some(r => r.relation === 'ally'), exp: 120 },
+  { id: 'ship', title: 'Set sail', desc: 'Build a Dock on the shore and craft a Longship.', check: g => g.buildings.some(b => b.type === 'ship'), exp: 150 },
+];
+
+const Game = {
+  state: null, world: null, scene: null, camera: null, renderer: null,
+  player: null, npcs: [], enemies: [], buildings: [], rivalMeshes: [],
+  listeners: {}, selected: null, buildMode: null, ghost: null, time: 0,
+  lastFrame: 0, zoom: 14, camTarget: new THREE.Vector3(), keys: {},
+  sun: null, ambient: null, hemi: null, log: [], onShip: null,
+  on(ev, fn) { (this.listeners[ev] = this.listeners[ev] || []).push(fn); },
+  emit(ev, data) { (this.listeners[ev] || []).forEach(f => f(data)); },
+  notify(msg, kind) { this.log.unshift({ msg, kind: kind || 'info', t: Date.now() }); this.log.length = Math.min(this.log.length, 8); this.emit('log', this.log); },
+};
+
+/* ------------------------------------------------------------------ */
+/* Persistence                                                          */
+/* ------------------------------------------------------------------ */
+function defaultState() {
+  return {
+    seed: Math.floor(Math.random() * 1e9), user: null,
+    townName: 'Unnamed Camp', townNamed: false, lastRename: 0,
+    inv: { wood: 0, stone: 0, fiber: 0, ore: 0, crystal: 0, food: 0 }, coins: 10,
+    exp: 0, level: 1, achievements: [], questIndex: 0,
+    player: { x: 8.5, z: 8.5, layer: 'surface', hp: 100 }, spawnChosen: false,
+    hotbar: ['fists', null, null, null, null], slot: 0,
+    buildings: [], npcs: [], removed: [], rivals: null,
+    stats: { beasts: 0, raids: 0, trades: 0, visitedSky: false, visitedDepths: false },
+    lastSeen: Date.now(), dayTime: 0.3, friends: [],
+  };
+}
+function save() {
+  const s = Game.state;
+  s.player = { x: Game.player.x, z: Game.player.z, layer: Game.player.layer, hp: Game.player.hp };
+  s.buildings = Game.buildings.map(b => ({ type: b.type, x: b.x, z: b.z, layer: b.layer, hp: b.hp, arch: b.arch }));
+  s.npcs = Game.npcs.filter(n => !n.dead).map(n => ({ x: n.x, z: n.z, role: n.role, shape: n.shape, hp: n.hp, rank: n.rank, name: n.name }));
+  s.removed = Array.from(Game.world.removed);
+  s.lastSeen = Date.now(); s.dayTime = Game.time / DAY_LENGTH % 1;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) { /* storage full or disabled */ }
+}
+function load() {
+  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) return Object.assign(defaultState(), JSON.parse(raw)); } catch (e) { /* corrupt save */ }
+  return defaultState();
+}
+
+/* ------------------------------------------------------------------ */
+/* Scene / camera / lighting                                            */
+/* ------------------------------------------------------------------ */
+function initScene() {
+  const canvas = document.getElementById('game');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  Game.renderer = renderer;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0e0d10);
+  scene.fog = new THREE.Fog(0x0e0d10, 60, 110);
+  Game.scene = scene;
+
+  /* Fixed isometric camera: orthographic, azimuth 45 deg, elevation 45 deg.
+     Zoom changes the frustum size, not the position, so shadows stay stable. */
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+  Game.camera = cam; Game.camOffset = new THREE.Vector3(1, Math.SQRT2, 1).normalize().multiplyScalar(90);
+  resize();
+
+  Game.hemi = new THREE.HemisphereLight(0xcfe8ff, 0x3a2a1a, 0.55); scene.add(Game.hemi);
+  Game.ambient = new THREE.AmbientLight(0xffffff, 0.15); scene.add(Game.ambient);
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  const sc = sun.shadow.camera; sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40; sc.near = 1; sc.far = 200;
+  sun.shadow.bias = -0.0008;
+  scene.add(sun); scene.add(sun.target);
+  Game.sun = sun;
+
+  addEventListener('resize', resize);
+}
+function resize() {
+  const a = innerWidth / innerHeight, z = Game.zoom;
+  Game.camera.left = -z * a; Game.camera.right = z * a; Game.camera.top = z; Game.camera.bottom = -z;
+  Game.camera.updateProjectionMatrix();
+  if (Game.renderer) Game.renderer.setSize(innerWidth, innerHeight);
+}
+
+/* ------------------------------------------------------------------ */
+/* Day / night cycle drives light color, intensity and shadow direction */
+/* ------------------------------------------------------------------ */
+function updateLighting() {
+  const t = (Game.time / DAY_LENGTH) % 1;             // 0..1, 0.25 = noon, 0.75 = midnight
+  const sunAngle = t * Math.PI * 2;
+  const elev = Math.sin(sunAngle);                     // >0 day
+  const day = Math.max(0, elev);
+  const layer = Game.player.layer;
+  const p = Game.player;
+  if (layer === 'depths') {
+    Game.sun.intensity = 0.25; Game.sun.color.setHex(0xff9a5a);
+    Game.hemi.intensity = 0.25; Game.ambient.intensity = 0.25;
+    Game.scene.background.setHex(0x06050a); Game.scene.fog.color.setHex(0x06050a);
+    Game.sun.position.set(p.x + 10, p.y + 40, p.z + 10);
+  } else {
+    const night = 1 - day;
+    Game.sun.intensity = 0.15 + day * 1.25;
+    Game.sun.color.setRGB(1, 0.85 + day * 0.15, 0.6 + day * 0.4);
+    Game.hemi.intensity = 0.2 + day * 0.4;
+    Game.ambient.intensity = 0.08 + day * 0.12;
+    const sky = new THREE.Color().setRGB(0.05 + day * 0.35, 0.05 + day * 0.5, 0.09 + day * 0.7);
+    if (layer === 'sky') sky.offsetHSL(0, 0, 0.12);
+    Game.scene.background.copy(sky); Game.scene.fog.color.copy(sky);
+    Game.sun.position.set(p.x + Math.cos(sunAngle) * 60, p.y + 20 + day * 60, p.z + Math.sin(sunAngle) * 30 + 30);
+    void night;
+  }
+  Game.sun.target.position.set(p.x, p.y, p.z);
+  Game.isNight = elev < -0.1 && layer !== 'depths';
+}
+
+/* ------------------------------------------------------------------ */
+/* World bootstrap                                                      */
+/* ------------------------------------------------------------------ */
+function initWorld() {
+  const s = Game.state;
+  Game.world = new World(Game.scene, s.seed, new Set(s.removed), (x, z, layer) => {
+    return Game.buildings.some(b => b.layer === layer && Math.abs(b.x - x - 0.5) < b.size / 2 && Math.abs(b.z - z - 0.5) < b.size / 2);
+  });
+  // Find a walkable spawn on the surface near the origin
+  const spawn = Game.world.nearestWalkable(s.player.x, s.player.z, s.player.layer);
+  const biome = Game.world.gen.tile(Math.floor(spawn.x), Math.floor(spawn.z), s.player.layer).biome;
+  if (!s.hotbar) { s.hotbar = ['fists', null, null, null, null]; s.slot = 0; }
+  if (!s.hotbar.some(w => w && w !== 'fists')) { const g = STARTER_GEAR[biome] || ['spear']; g.forEach((w, i) => { s.hotbar[i + 1] = w; }); }
+  Game.player = new Entity({ shape: 'diamond', color: 0xf0d9a0, name: s.user ? s.user.name : 'Mayor', hp: s.player.hp || 100, faction: 'player', rank: 1, gear: [], x: spawn.x, z: spawn.z, layer: s.player.layer, speed: 4.2 });
+  selectSlot(s.slot || 0, true);
+  Game.player.maxHp = 100;
+  Game.player.y = Game.world.heightAt(spawn.x, spawn.z, s.player.layer);
+  Game.scene.add(Game.player.root);
+  Game.world.setLayer(s.player.layer);
+  Game.world.update(spawn.x, spawn.z);
+  Game.time = (s.dayTime || 0.3) * DAY_LENGTH;
+  Game.camTarget.set(spawn.x, Game.player.y, spawn.z);
+  // Restore buildings and settlers
+  for (const b of s.buildings) placeBuilding(b.type, b.x, b.z, b.layer, true, b.hp, b.arch);
+  for (const n of s.npcs) spawnNpc(n);
+  if (!s.rivals) s.rivals = generateRivals();
+  buildRivalMeshes();
+  Game.notify(`You arrive in the ${BIOMES[biome].name}. Your ${(STARTER_GEAR[biome] || ['spear']).join(' and ')} sit in the hotbar - press 2 to draw. Fists only scratch.`);
+}
+
+function currentWeapon() { return WEAPONS[Game.state.hotbar[Game.state.slot]] || WEAPONS.fists; }
+/* Instant travel to a map point: snaps to the nearest walkable tile on the current layer. */
+function teleport(x, z) {
+  const p = Game.player, gen = Game.world.gen;
+  let found = null;
+  for (let r = 0; r < 90 && !found; r++) for (let dx = -r; dx <= r && !found; dx++) for (let dz = -r; dz <= r && !found; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+    if (gen.walkable(Math.floor(x) + dx, Math.floor(z) + dz, p.layer, !!Game.onShip)) found = { x: Math.floor(x) + dx + 0.5, z: Math.floor(z) + dz + 0.5 };
+  }
+  if (!found) { Game.notify('Nowhere to land near there on this layer.', 'warn'); return false; }
+  if (Game.onShip) disembark();
+  p.x = found.x; p.z = found.z; p.y = Game.world.heightAt(p.x, p.z, p.layer); p.path = []; p.target = null; p.targetObj = null;
+  Game.world.update(p.x, p.z); Game.camTarget.set(p.x, p.y, p.z);
+  Game.notify('Travelled to ' + Math.round(p.x) + ', ' + Math.round(p.z) + '.');
+  return true;
+}
+function selectSlot(i, silent) {
+  const s = Game.state; if (i < 0 || i > 4) return;
+  s.slot = i;
+  const w = currentWeapon();
+  Game.player.setGear(w.gear);
+  if (!silent) Game.notify('Holding ' + w.name + (s.hotbar[i] ? '' : ' (empty slot)') + '.');
+  Game.emit('hotbar');
+}
+function giveWeapon(id) {
+  const s = Game.state;
+  if (s.hotbar.includes(id)) return false;
+  const free = s.hotbar.indexOf(null); if (free < 0) return false;
+  s.hotbar[free] = id; Game.notify('Found a ' + WEAPONS[id].name + '. Placed in slot ' + (free + 1) + '.', 'good'); Game.emit('hotbar');
+  return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Rival AI colonies: stand-ins for other players' settlements.        */
+/* ------------------------------------------------------------------ */
+function generateRivals() {
+  const names = ['Ashfall', 'Brinehold', 'Coldmere', 'Dunrest'];
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.6;
+    const cx = Math.round(Game.player.x + Math.cos(a) * 130), cz = Math.round(Game.player.z + Math.sin(a) * 130);
+    const p = Game.world.nearestWalkable(cx, cz, 'surface');
+    out.push({ id: 'rival' + i, name: names[i], x: p.x, z: p.z, relation: 'neutral', treaty: false, pending: 0, houses: 3, power: 60 + i * 30, mood: 0.4 + Math.random() * 0.5 });
+  }
+  return out;
+}
+function buildRivalMeshes() {
+  for (const m of Game.rivalMeshes) Game.scene.remove(m);
+  Game.rivalMeshes = [];
+  for (const r of Game.state.rivals) {
+    const g = new THREE.Group();
+    const biome = Game.world.gen.tile(Math.floor(r.x), Math.floor(r.z), 'surface').biome;
+    const arch = BIOMES[biome].arch;
+    const hall = buildingMesh('townhall', arch, 0); g.add(hall);
+    for (let i = 0; i < r.houses; i++) {
+      const a = i / Math.max(1, r.houses) * Math.PI * 2;
+      const h = buildingMesh('house', arch, i); h.position.set(Math.cos(a) * 3.2, 0, Math.sin(a) * 3.2); g.add(h);
+    }
+    g.position.set(r.x, Game.world.heightAt(r.x, r.z, 'surface'), r.z);
+    g.userData.rival = r;
+    Game.scene.add(g); Game.rivalMeshes.push(g);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Buildings                                                            */
+/* ------------------------------------------------------------------ */
+function townHall() { return Game.buildings.find(b => b.type === 'townhall'); }
+function territoryRadius() { return TERRITORY_RADIUS + (seasonTier() >= 8 ? 10 : 0); }
+function inTerritory(x, z) { const h = townHall(); return h && Math.hypot(h.x - x, h.z - z) <= territoryRadius(); }
+
+function canPlace(type, x, z, layer) {
+  const R = BUILD_RECIPES[type]; if (!R) return { ok: false, why: 'Unknown building' };
+  if (R.tier > seasonTier() - 1 && R.tier > 0 && !recipeUnlocked(type)) return { ok: false, why: 'Locked: reach season tier ' + (R.tier + 1) };
+  for (const k in R.cost) { const have = k === 'coins' ? Game.state.coins : Game.state.inv[k] || 0; if (have < R.cost[k]) return { ok: false, why: 'Need ' + R.cost[k] + ' ' + k }; }
+  if (type !== 'townhall' && !townHall()) return { ok: false, why: 'Build the Town Hall first' };
+  if (type === 'townhall' && townHall()) return { ok: false, why: 'You already have a Town Hall' };
+  if (type !== 'townhall' && !inTerritory(x, z)) return { ok: false, why: 'Outside your territory (' + territoryRadius() + ' units)' };
+  // Enemy claim buffer: cannot build within a rival's 50 unit radius unless allied
+  for (const r of Game.state.rivals) if (layer === 'surface' && Math.hypot(r.x - x, r.z - z) < TERRITORY_RADIUS && r.relation !== 'ally') return { ok: false, why: r.name + ' claims this land. Form an alliance first.' };
+  const half = R.size / 2;
+  const wantWater = type === 'ship';
+  for (let dx = -half; dx < half; dx++) for (let dz = -half; dz < half; dz++) {
+    const tx = Math.floor(x + dx), tz = Math.floor(z + dz);
+    const t = Game.world.gen.tile(tx, tz, layer);
+    if (!t.exists || t.wall || t.hazard) return { ok: false, why: 'Unbuildable terrain' };
+    if ((t.biome === 'water') !== wantWater && !(R.name === 'Dock' && t.biome === 'water')) return { ok: false, why: wantWater ? 'Ships must be placed on water beside a Dock' : 'Cannot build on water' };
+    if (Game.buildings.some(b => b.layer === layer && Math.abs(b.x - tx - 0.5) < (b.size + R.size) / 2 - 0.01 && Math.abs(b.z - tz - 0.5) < (b.size + R.size) / 2 - 0.01)) return { ok: false, why: 'Overlaps a building' };
+  }
+  if (type === 'dock') {
+    let shore = false;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (Game.world.gen.tile(Math.floor(x) + dx, Math.floor(z) + dz, layer).biome === 'water') shore = true;
+    if (!shore) return { ok: false, why: 'Dock must touch the shoreline' };
+  }
+  if (type === 'ship' && !Game.buildings.some(b => b.type === 'dock' && Math.hypot(b.x - x, b.z - z) < 5)) return { ok: false, why: 'Ships must be within 5 units of a Dock' };
+  return { ok: true };
+}
+
+function placeBuilding(type, x, z, layer, restoring, hp, arch) {
+  const R = BUILD_RECIPES[type];
+  if (!restoring) { const c = canPlace(type, x, z, layer); if (!c.ok) { Game.notify(c.why, 'warn'); return null; } for (const k in R.cost) { if (k === 'coins') Game.state.coins -= R.cost[k]; else Game.state.inv[k] -= R.cost[k]; } }
+  const t = Game.world.gen.tile(Math.floor(x), Math.floor(z), layer);
+  arch = arch || BIOMES[t.biome].arch;
+  const mesh = buildingMesh(type, arch, Game.buildings.length);
+  const y = t.biome === 'water' ? 0 : t.h;
+  mesh.position.set(x, y, z);
+  Game.scene.add(mesh);
+  const b = { type, x, z, layer, size: R.size, hp: hp || R.hp, maxHp: R.hp, mesh, arch, timer: 0 };
+  Game.buildings.push(b);
+  mesh.visible = layer === Game.player.layer;
+  // clear natural objects under the footprint
+  for (let dx = -R.size / 2; dx < R.size / 2; dx++) for (let dz = -R.size / 2; dz < R.size / 2; dz++) Game.world.removeObjectAt(x + dx, z + dz, layer);
+  if (!restoring) {
+    Game.notify('Built ' + R.name + '.', 'good');
+    unlockAchievement('build_' + type, 15);
+    if (type === 'townhall') { Game.notify('Settlement founded. Settlers will arrive as you build houses.', 'good'); }
+    addExp(10);
+    save();
+  }
+  return b;
+}
+function removeBuilding(b) {
+  Game.scene.remove(b.mesh); Game.buildings.splice(Game.buildings.indexOf(b), 1);
+  if (Game.onShip === b) { Game.onShip = null; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Settlers (NPC automation)                                            */
+/* ------------------------------------------------------------------ */
+const NPC_NAMES = ['Ori', 'Wren', 'Tamsin', 'Bram', 'Selk', 'Juno', 'Pell', 'Marra', 'Doro', 'Ilse', 'Kett', 'Fenn'];
+function spawnNpc(data) {
+  const hall = townHall();
+  const shape = data.shape || (data.role === 'guard' ? 'square' : 'circle');
+  const n = new Entity({ shape, color: shape === 'square' ? 0xa8b0b8 : 0xe0cfa8, name: data.name || (NPC_NAMES.filter(x => !Game.npcs.some(n => n.name === x))[0] || NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)] + ' II'), hp: data.hp || (shape === 'square' ? 80 : 40), faction: 'player', role: data.role || 'idle', rank: data.rank || 0, gear: data.role === 'guard' ? ['spear', 'shield'] : [], x: data.x, z: data.z, layer: 'surface', speed: 2.6 });
+  n.maxHp = shape === 'square' ? 80 : 40;
+  n.carry = {}; n.state = 'idle'; n.think = Math.random();
+  n.y = Game.world.heightAt(n.x, n.z, 'surface');
+  n.root.visible = Game.player.layer === 'surface';
+  Game.scene.add(n.root); Game.npcs.push(n);
+  void hall;
+  return n;
+}
+function setNpcRole(n, role) {
+  const wantSquare = role === 'guard';
+  if ((n.shape === 'square') !== wantSquare) {
+    // Re-shape: guards are squares, workers are circles (spec)
+    Game.scene.remove(n.root);
+    const i = Game.npcs.indexOf(n);
+    const nn = spawnNpc({ x: n.x, z: n.z, role, shape: wantSquare ? 'square' : 'circle', name: n.name, rank: seasonTier() >= 5 && wantSquare ? 3 : 0 });
+    Game.npcs.splice(Game.npcs.indexOf(nn), 1); Game.npcs[i] = nn;
+    Game.selected = nn; nn.setSelected(true);
+    Game.notify(nn.name + ' is now a ' + role + '.', 'good');
+    return nn;
+  }
+  n.role = role; n.state = 'idle'; n.path = [];
+  n.setGear(role === 'guard' ? ['spear', 'shield'] : role === 'gather' ? ['knife'] : []);
+  Game.notify(n.name + ' is now assigned to ' + role + '.', 'good');
+  return n;
+}
+
+function updateNpcs(dt) {
+  const hall = townHall(); if (!hall) return;
+  const R = territoryRadius();
+  for (const n of Game.npcs) {
+    if (n.dead) continue;
+    n.think -= dt;
+    n.step(dt, Game.world);
+    if (n.think > 0) continue;
+    n.think = 0.4 + Math.random() * 0.4;
+    const nearestEnemy = Game.enemies.filter(e => !e.dead && e.layer === 'surface').sort((a, b) => Math.hypot(a.x - n.x, a.z - n.z) - Math.hypot(b.x - n.x, b.z - n.z))[0];
+    if (n.role === 'guard') {
+      if (nearestEnemy && Math.hypot(nearestEnemy.x - n.x, nearestEnemy.z - n.z) < 14) {
+        const d = Math.hypot(nearestEnemy.x - n.x, nearestEnemy.z - n.z);
+        if (d < 1.3) { if (n.attackT <= 0) { n.attackT = 0.35; nearestEnemy.damage(8 * defenseMultiplier()); } n.path = []; }
+        else n.path = findPath(Game.world.gen, 'surface', n.x, n.z, nearestEnemy.x, nearestEnemy.z, false, isBlockedTile, 600);
+      } else if (!n.path.length) {
+        // patrol the perimeter ring (tower positions preferred)
+        const towers = Game.buildings.filter(b => b.type === 'tower');
+        let tx, tz;
+        if (towers.length && Math.random() < 0.5) { const t = towers[Math.floor(Math.random() * towers.length)]; tx = t.x + (Math.random() - 0.5) * 3; tz = t.z + (Math.random() - 0.5) * 3; }
+        else { const a = Math.random() * Math.PI * 2; tx = hall.x + Math.cos(a) * R * 0.5; tz = hall.z + Math.sin(a) * R * 0.5; }
+        const p = Game.world.nearestWalkable(tx, tz, 'surface');
+        n.path = findPath(Game.world.gen, 'surface', n.x, n.z, p.x, p.z, false, isBlockedTile, 900);
+      }
+      continue;
+    }
+    if (nearestEnemy && Math.hypot(nearestEnemy.x - n.x, nearestEnemy.z - n.z) < 6 && n.role !== 'guard') {
+      // civilians flee to the hall
+      n.path = findPath(Game.world.gen, 'surface', n.x, n.z, hall.x, hall.z + 2, false, isBlockedTile, 600); continue;
+    }
+    if (n.role === 'gather') {
+      if (n.state === 'idle') {
+        const o = findNearestResource(n.x, n.z, 'surface', ['tree', 'spruce', 'acacia', 'rock', 'fiber', 'cactus'], R, hall);
+        if (o) { n.targetObj = o; n.state = 'going'; n.path = findPath(Game.world.gen, 'surface', n.x, n.z, o.wx + 0.5, o.wz + 0.5, false, null, 900); }
+      } else if (n.state === 'going') {
+        const o = n.targetObj;
+        if (!Game.world.objectAt(o.wx + 0.5, o.wz + 0.5, 'surface')) { n.state = 'idle'; n.path = []; }
+        else if (Math.hypot(o.wx + 0.5 - n.x, o.wz + 0.5 - n.z) < 1.5) { n.state = 'working'; n.work = 2.2; n.path = []; }
+        else if (!n.path.length) n.state = 'idle';
+      } else if (n.state === 'working') {
+        n.work -= n.think;
+        if (n.work <= 0) {
+          const o = n.targetObj; const y = RESOURCE_YIELD[o.type] || {};
+          for (const k in y) n.carry[k] = (n.carry[k] || 0) + y[k];
+          Game.world.removeObjectAt(o.wx + 0.5, o.wz + 0.5, 'surface');
+          n.state = 'returning';
+          const dest = Game.buildings.find(b => b.type === 'storehouse') || hall;
+          n.path = findPath(Game.world.gen, 'surface', n.x, n.z, dest.x + dest.size / 2 + 0.5, dest.z, false, isBlockedTile, 900);
+        }
+      } else if (n.state === 'returning') {
+        if (!n.path.length) { for (const k in n.carry) { if (k === 'coins') Game.state.coins += n.carry[k]; else Game.state.inv[k] = (Game.state.inv[k] || 0) + n.carry[k]; } n.carry = {}; n.state = 'idle'; Game.emit('inv'); }
+      }
+    } else if (n.role === 'farm') {
+      const farm = Game.buildings.find(b => b.type === 'farm');
+      if (!farm) { n.role = 'idle'; Game.notify(n.name + ' has no Farm Plot to work.', 'warn'); continue; }
+      if (Math.hypot(farm.x - n.x, farm.z - n.z) > 2) { if (!n.path.length) n.path = findPath(Game.world.gen, 'surface', n.x, n.z, farm.x + 1.5, farm.z, false, isBlockedTile, 900); }
+      else { n.work = (n.work || 0) + n.think; if (n.work > 6) { n.work = 0; Game.state.inv.food += 2; Game.state.coins += 1; Game.emit('inv'); } }
+    } else if (n.role === 'haul') {
+      // haulers shuttle between storehouse and hall; each round trip converts surplus into coins (trade)
+      const store = Game.buildings.find(b => b.type === 'storehouse');
+      if (!store) { n.role = 'idle'; Game.notify(n.name + ' has no Storehouse to haul from.', 'warn'); continue; }
+      if (!n.path.length) {
+        n.hopTo = n.hopTo === 'hall' ? 'store' : 'hall';
+        const d = n.hopTo === 'hall' ? hall : store;
+        n.path = findPath(Game.world.gen, 'surface', n.x, n.z, d.x + d.size / 2 + 0.5, d.z + 1, false, isBlockedTile, 900);
+        if (n.hopTo === 'hall' && Game.state.inv.wood > 30) { Game.state.inv.wood -= 5; Game.state.coins += 3; Game.state.stats.trades++; Game.emit('inv'); }
+      }
+    } else if (!n.path.length && Math.random() < 0.3) {
+      const p = Game.world.nearestWalkable(hall.x + (Math.random() - 0.5) * 10, hall.z + (Math.random() - 0.5) * 10, 'surface');
+      n.path = findPath(Game.world.gen, 'surface', n.x, n.z, p.x, p.z, false, isBlockedTile, 500);
+    }
+  }
+  // settlers arrive: one per house, spawning at the hall
+  const houses = Game.buildings.filter(b => b.type === 'house').length;
+  const alive = Game.npcs.filter(n => !n.dead).length;
+  if (alive < houses && Math.random() < dt * 0.15) {
+    const p = Game.world.nearestWalkable(hall.x + 2.5, hall.z + 2, 'surface');
+    const n = spawnNpc({ x: p.x, z: p.z, role: 'idle' });
+    Game.notify(n.name + ' has settled in ' + Game.state.townName + '.', 'good');
+    unlockAchievement('settler', 10); save();
+  }
+}
+function isBlockedTile(x, z) {
+  return Game.buildings.some(b => b.layer === 'surface' && b.type !== 'farm' && b.type !== 'dock' && Math.abs(b.x - x - 0.5) < b.size / 2 && Math.abs(b.z - z - 0.5) < b.size / 2);
+}
+function findNearestResource(x, z, layer, types, radius, center) {
+  let best = null, bd = Infinity;
+  for (const ch of Game.world.chunks[layer].values()) for (const o of ch.objects.values()) {
+    if (!types.includes(o.type)) continue;
+    if (center && Math.hypot(o.wx - center.x, o.wz - center.z) > radius) continue;
+    if (Game.npcs.some(n => n.targetObj === o && n.state !== 'idle')) continue;
+    const d = Math.hypot(o.wx - x, o.wz - z);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+
+/* ------------------------------------------------------------------ */
+/* Enemies: night raiders, wild beasts, enemy ships                    */
+/* ------------------------------------------------------------------ */
+function spawnRaid(strength) {
+  const hall = townHall(); if (!hall) return;
+  const a = Math.random() * Math.PI * 2, R = territoryRadius() + 8;
+  for (let i = 0; i < strength; i++) {
+    const p = Game.world.nearestWalkable(hall.x + Math.cos(a) * R + (Math.random() - 0.5) * 6, hall.z + Math.sin(a) * R + (Math.random() - 0.5) * 6, 'surface');
+    const boss = i === 0 && strength > 3;
+    const e = new Entity({ shape: boss ? 'diamond' : 'square', color: boss ? 0xc0392b : 0x7a2a2a, name: boss ? 'Warlord' : 'Raider', hp: boss ? 120 : 45, faction: 'enemy', rank: boss ? 3 : 1, gear: boss ? ['spear', 'shield'] : ['knife'], x: p.x, z: p.z, layer: 'surface', speed: 2.3 });
+    e.kind = 'raider'; e.y = Game.world.heightAt(p.x, p.z, 'surface');
+    Game.scene.add(e.root); Game.enemies.push(e);
+  }
+  Game.state.stats.raids++;
+  Game.notify('Raiders approach from the ' + compass(a) + '!', 'warn');
+}
+function compass(a) { const d = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east']; return d[Math.round(((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI / 4)) % 8]; }
+
+function spawnBeastFromObject(o, layer) {
+  const biome = Game.world.gen.tile(o.wx, o.wz, layer).biome;
+  const B = BEASTS[biome] || BEASTS.forest;
+  const e = new Entity({ shape: B.shape, color: B.color, name: B.name, hp: B.hp, faction: 'enemy', gear: [], x: o.wx + 0.5, z: o.wz + 0.5, layer, speed: B.speed });
+  e.kind = 'beast'; e.dmg = B.dmg; e.y = o.h; e.home = { x: e.x, z: e.z };
+  Game.world.removeObjectAt(o.wx + 0.5, o.wz + 0.5, layer);
+  Game.world.removed.delete(layer + ':' + o.wx + ',' + o.wz);   // beasts respawn on chunk reload
+  Game.scene.add(e.root); Game.enemies.push(e);
+  return e;
+}
+function spawnEnemyShip() {
+  const p = Game.player;
+  const a = Math.random() * Math.PI * 2;
+  let x = p.x + Math.cos(a) * 25, z = p.z + Math.sin(a) * 25;
+  for (let i = 0; i < 30; i++) { if (Game.world.gen.tile(Math.floor(x), Math.floor(z), 'surface').biome === 'water') break; x += Math.cos(a); z += Math.sin(a); }
+  if (Game.world.gen.tile(Math.floor(x), Math.floor(z), 'surface').biome !== 'water') return;
+  const e = new Entity({ shape: 'square', color: 0x5a3a2a, name: 'Corsair', hp: 150, faction: 'enemy', rank: 2, gear: ['spear'], x, z, layer: 'surface', speed: 3.4 });
+  e.kind = 'ship'; e.onShip = true; e.y = 0;
+  const hull = buildingMesh('ship', 'stilt', 0); hull.children.forEach(c => { if (c.material.color) c.material = c.material.clone(); c.material.color.offsetHSL(0, 0, -0.2); }); e.root.add(hull);
+  Game.scene.add(e.root); Game.enemies.push(e);
+  Game.notify('A corsair longship is hunting on these waters.', 'warn');
+}
+
+function updateEnemies(dt) {
+  const hall = townHall(), p = Game.player;
+  for (let i = Game.enemies.length - 1; i >= 0; i--) {
+    const e = Game.enemies[i];
+    if (e.dead) {
+      Game.scene.remove(e.root); Game.enemies.splice(i, 1);
+      const coins = e.kind === 'ship' ? 25 : e.kind === 'raider' ? 6 : 8;
+      Game.state.coins += coins; addExp(e.kind === 'ship' ? 40 : 12);
+      if (e.kind === 'beast') { Game.state.stats.beasts++; unlockAchievement('first_hunt', 20); }
+      if (e.kind === 'ship') unlockAchievement('naval_victory', 60);
+      if (e.kind === 'raider' && Math.random() < 0.35) giveWeapon('knife');
+      if (e.name === 'Warlord') giveWeapon(Game.buildings.some(b => b.type === 'forge') ? 'ironspear' : 'spear');
+      if (e.kind === 'beast' && Math.random() < 0.2) giveWeapon('sling');
+      Game.notify(e.name + ' slain. +' + coins + ' coins.', 'good'); Game.emit('inv');
+      continue;
+    }
+    if (e.layer !== p.layer) { e.root.visible = false; continue; }
+    e.root.visible = true;
+    e.step(dt, Game.world);
+    e.think = (e.think || 0) - dt; if (e.think > 0) continue; e.think = 0.35;
+    // choose a target: player if near, else nearest colony asset
+    let tgt = null, td = Infinity;
+    const cands = [];
+    if (Math.hypot(p.x - e.x, p.z - e.z) < (e.kind === 'beast' ? 7 : 40)) cands.push({ x: p.x, z: p.z, ent: p });
+    if (e.kind === 'raider') { for (const n of Game.npcs) if (!n.dead) cands.push({ x: n.x, z: n.z, ent: n }); for (const b of Game.buildings) if (b.layer === 'surface') cands.push({ x: b.x, z: b.z, bld: b }); }
+    if (e.kind === 'ship') { for (const b of Game.buildings) if (b.type === 'ship' || b.type === 'dock') cands.push({ x: b.x, z: b.z, bld: b }); }
+    for (const c of cands) { const d = Math.hypot(c.x - e.x, c.z - e.z); if (d < td) { td = d; tgt = c; } }
+    if (!tgt) {
+      if (e.kind === 'beast' && !e.path.length && Math.random() < 0.3) { const q = Game.world.nearestWalkable(e.home.x + (Math.random() - 0.5) * 8, e.home.z + (Math.random() - 0.5) * 8, e.layer); e.path = findPath(Game.world.gen, e.layer, e.x, e.z, q.x, q.z, false, null, 300); }
+      if (e.kind === 'raider' && hall) { e.path = findPath(Game.world.gen, 'surface', e.x, e.z, hall.x, hall.z, false, isBlockedTile, 900); }
+      continue;
+    }
+    const reach = tgt.bld ? tgt.bld.size / 2 + 1.0 : (e.kind === 'ship' ? 2.5 : 1.2);
+    if (td <= reach) {
+      e.path = [];
+      if (e.attackT <= 0) {
+        e.attackT = 0.5;
+        let dmg = (e.kind === 'ship' ? 14 : e.name === 'Warlord' ? 12 : e.dmg || 6) / defenseMultiplier();
+        if (tgt.ent === p && currentWeapon().guard) dmg *= currentWeapon().guard;   // raised shield
+        if (tgt.ent) { tgt.ent.damage(dmg); if (tgt.ent === p) { Game.emit('hp'); if (!p.target || p.target.dead) p.target = e; } }
+        else if (tgt.bld) { tgt.bld.hp -= dmg; if (tgt.bld.hp <= 0) { Game.notify(BUILD_RECIPES[tgt.bld.type].name + ' was destroyed!', 'warn'); removeBuilding(tgt.bld); } }
+      }
+    } else {
+      e.path = findPath(Game.world.gen, e.layer, e.x, e.z, tgt.x, tgt.z, e.onShip, e.kind === 'ship' ? null : isBlockedTile, 700);
+      if (!e.path.length && e.kind === 'ship') { const dx = tgt.x - e.x, dz = tgt.z - e.z, d = Math.hypot(dx, dz); e.path = [{ x: e.x + dx / d * 2, z: e.z + dz / d * 2 }]; }
+    }
+  }
+  // wake beasts near the player (they exist as static objects until approached)
+  if (Math.random() < dt * 2) {
+    for (const ch of Game.world.chunks[p.layer].values()) for (const o of ch.objects.values()) {
+      if (o.type === 'beast' && Math.hypot(o.wx - p.x, o.wz - p.z) < 9) { spawnBeastFromObject(o, p.layer); }
+    }
+  }
+}
+
+/* Passive defense multiplier: season pass tier, shrine, forge, offline armor. */
+function defenseMultiplier() {
+  let m = SEASON_PASS[Math.max(0, seasonTier() - 1)].defense;
+  if (Game.buildings.some(b => b.type === 'shrine')) m *= 1.2;
+  if (Game.buildings.some(b => b.type === 'forge')) m *= 1.15;
+  return m;
+}
+
+/* ------------------------------------------------------------------ */
+/* Offline simulation: resolve raids that happened while away.        */
+/* Guards defend with the armored multiplier; losses are reported.    */
+/* ------------------------------------------------------------------ */
+function simulateOffline() {
+  const s = Game.state, away = Date.now() - (s.lastSeen || Date.now());
+  const hours = away / 3600000;
+  if (hours < 0.25 || !townHall()) return;
+  const nights = Math.floor(hours);   // one raid attempt per real hour away
+  const guards = Game.npcs.filter(n => n.role === 'guard').length;
+  const defense = (guards * 12 + Game.buildings.filter(b => b.type === 'tower').length * 20 + Game.buildings.filter(b => b.type === 'wall').length * 4 + 10) * defenseMultiplier() * OFFLINE_ARMOR;
+  let lost = 0, repelled = 0;
+  const raids = Math.min(nights, 12);
+  for (let i = 0; i < raids; i++) {
+    const strength = 20 + Math.random() * 40 + i * 4;
+    if (strength <= defense) { repelled++; s.coins += 2; }
+    else {
+      lost++;
+      const victim = Game.buildings.filter(b => b.type !== 'townhall').sort(() => Math.random() - 0.5)[0];
+      if (victim) { victim.hp -= 60; if (victim.hp <= 0) removeBuilding(victim); }
+    }
+  }
+  // farmers keep producing while away
+  const farmers = Game.npcs.filter(n => n.role === 'farm').length;
+  const food = Math.floor(Math.min(hours, 24) * 6 * farmers);
+  s.inv.food += food;
+  Game.offlineReport = { hours: hours.toFixed(1), raids, repelled, lost, guards, armor: OFFLINE_ARMOR, food };
+  Game.emit('offline', Game.offlineReport);
+}
+
+/* ------------------------------------------------------------------ */
+/* Kingdom progression: EXP, levels, season pass, achievements, quests */
+/* ------------------------------------------------------------------ */
+function seasonTier() { let t = 1; for (const s of SEASON_PASS) if (Game.state.exp >= s.exp) t = s.tier; return t; }
+function recipeUnlocked(type) { return BUILD_RECIPES[type].tier <= seasonTier() - 1; }
+function addExp(n) {
+  const s = Game.state, before = seasonTier();
+  s.exp += n;
+  const lvl = 1 + Math.floor(Math.sqrt(s.exp / 25));
+  if (lvl > s.level) { s.level = lvl; Game.notify('Kingdom reached level ' + lvl + '.', 'good'); }
+  const after = seasonTier();
+  if (after > before) Game.notify('Season pass tier ' + after + ' unlocked: ' + SEASON_PASS[after - 1].reward, 'good');
+  Game.emit('exp');
+}
+function unlockAchievement(id, exp) {
+  const s = Game.state; if (s.achievements.includes(id)) return;
+  s.achievements.push(id); addExp(exp);
+  Game.notify('Achievement: ' + id.replace(/_/g, ' ') + ' (+' + exp + ' EXP)', 'good');
+}
+function updateQuests() {
+  const s = Game.state, q = QUESTS[s.questIndex];
+  if (q && q.check(Game)) { addExp(q.exp); Game.notify('Quest complete: ' + q.title, 'good'); s.questIndex++; Game.emit('quest'); save(); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Alliances: rival colonies respond to requests over time.           */
+/* ------------------------------------------------------------------ */
+function requestAlliance(r) {
+  if (r.relation === 'ally') return Game.notify(r.name + ' is already your ally.');
+  if (r.pending > 0) return Game.notify(r.name + ' is still considering your request.');
+  r.pending = 20 + Math.random() * 20;
+  Game.notify('Alliance request sent to ' + r.name + '.');
+}
+function proposeTreaty(r) {
+  if (r.relation !== 'ally') return Game.notify('Only allies can sign a mutual defense treaty.', 'warn');
+  if (r.treaty) return Game.notify('Treaty with ' + r.name + ' already in force.');
+  if (Game.state.coins < 20) return Game.notify('A treaty costs 20 coins in gifts.', 'warn');
+  Game.state.coins -= 20; r.treaty = true; Game.emit('inv');
+  Game.notify('Mutual defense treaty signed with ' + r.name + '. Their guards now reinforce your raids.', 'good');
+}
+function updateRivals(dt) {
+  for (const r of Game.state.rivals) {
+    if (r.pending > 0) {
+      r.pending -= dt;
+      if (r.pending <= 0) {
+        const trust = r.mood + Game.state.level * 0.05 + (Game.state.friends.includes(r.name) ? 0.3 : 0);
+        if (trust > 0.7) { r.relation = 'ally'; Game.notify(r.name + ' accepts your alliance. Borders may now be shared.', 'good'); }
+        else { r.mood += 0.15; Game.notify(r.name + ' declines for now. Grow your kingdom and ask again.', 'warn'); }
+        Game.emit('rivals');
+      }
+    }
+    // rivals grow, but honour the 50 unit buffer around your hall unless allied
+    r.grow = (r.grow || 0) + dt;
+    if (r.grow > 90) {
+      r.grow = 0;
+      const hall = townHall();
+      const dist = hall ? Math.hypot(hall.x - r.x, hall.z - r.z) : Infinity;
+      if (dist > TERRITORY_RADIUS * 2 || r.relation === 'ally') { r.houses = Math.min(r.houses + 1, 8); r.power += 10; buildRivalMeshes(); }
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Player actions: gathering, combat, ships, layer travel               */
+/* ------------------------------------------------------------------ */
+function interactAt(wx, wz) {
+  const p = Game.player;
+  const o = Game.world.objectAt(wx, wz, p.layer);
+  if (o && o.type === 'beast') { const e = spawnBeastFromObject(o, p.layer); p.target = e; return; }
+  if (o) { p.targetObj = o; p.path = findPath(Game.world.gen, p.layer, p.x, p.z, o.wx + 0.5, o.wz + 0.5, !!Game.onShip, isBlockedTile, 1500); return; }
+  const ship = Game.buildings.find(b => b.type === 'ship' && Math.hypot(b.x - wx, b.z - wz) < 1.6);
+  if (ship) { p.targetShip = ship; p.path = findPath(Game.world.gen, p.layer, p.x, p.z, ship.x, ship.z, true, null, 1500); return; }
+  const rival = Game.state.rivals.find(r => p.layer === 'surface' && Math.hypot(r.x - wx, r.z - wz) < 4);
+  if (rival) { Game.emit('openAlliance', rival); return; }
+  p.targetObj = null; p.target = null;
+  p.path = findPath(Game.world.gen, p.layer, p.x, p.z, wx, wz, !!Game.onShip, isBlockedTile, 2500);
+}
+
+function updatePlayer(dt) {
+  const p = Game.player, k = Game.keys;
+  // WASD in screen-relative isometric directions
+  let mx = 0, mz = 0;
+  if (k.w) { mx -= 1; mz -= 1; } if (k.s) { mx += 1; mz += 1; }
+  if (k.a) { mx -= 1; mz += 1; } if (k.d) { mx += 1; mz -= 1; }
+  if (mx || mz) {
+    p.path = []; p.targetObj = null;
+    const l = Math.hypot(mx, mz); mx /= l; mz /= l;
+    const nx = p.x + mx * p.speed * dt, nz = p.z + mz * p.speed * dt;
+    const g = Game.world.gen, ship = !!Game.onShip;
+    const okX = g.walkable(Math.floor(nx), Math.floor(p.z), p.layer, ship) && Math.abs(g.tile(Math.floor(nx), Math.floor(p.z), p.layer).h - g.tile(Math.floor(p.x), Math.floor(p.z), p.layer).h) <= 0.55 && !isBlockedTile(Math.floor(nx), Math.floor(p.z));
+    const okZ = g.walkable(Math.floor(p.x), Math.floor(nz), p.layer, ship) && Math.abs(g.tile(Math.floor(p.x), Math.floor(nz), p.layer).h - g.tile(Math.floor(p.x), Math.floor(p.z), p.layer).h) <= 0.55 && !isBlockedTile(Math.floor(p.x), Math.floor(nz));
+    if (okX) p.x = nx; if (okZ) p.z = nz;
+    p.bob += dt * 3;
+    // disembark when stepping off water
+    if (Game.onShip && g.tile(Math.floor(p.x), Math.floor(p.z), p.layer).biome !== 'water') { Game.onShip.x = Math.floor(p.x) + 0.5; disembark(); }
+  } else {
+    const arrived = p.step(dt, Game.world);
+    if (arrived && p.targetObj) {
+      const o = p.targetObj;
+      if (Math.hypot(o.wx + 0.5 - p.x, o.wz + 0.5 - p.z) < 1.6) { p.gathering = (p.gathering || 0) + dt; p.attackT = 0.1; if (p.gathering > 1.2) { harvest(o); p.gathering = 0; p.targetObj = null; } }
+      else p.targetObj = null;
+    }
+    if (arrived && p.targetShip) { if (Math.hypot(p.targetShip.x - p.x, p.targetShip.z - p.z) < 1.8) embark(p.targetShip); p.targetShip = null; }
+  }
+  const ty = Game.world.heightAt(p.x, p.z, p.layer);
+  p.y += (ty - p.y) * Math.min(1, dt * 14);
+  if (Game.onShip) { Game.onShip.x = p.x; Game.onShip.z = p.z; Game.onShip.mesh.position.set(p.x, 0, p.z); p.y = 0.3; }
+  // hazards
+  const t = Game.world.gen.tile(Math.floor(p.x), Math.floor(p.z), p.layer);
+  if (t.hazard) { p.damage(t.hazard * dt); Game.emit('hp'); }
+  // combat: auto-attack the selected target when in range
+  if (p.target && !p.target.dead) {
+    const e = p.target, d = Math.hypot(e.x - p.x, e.z - p.z);
+    const w = currentWeapon();
+    const reach = Game.onShip ? 2.6 : w.reach;
+    if (d <= reach) { p.path = []; if (p.attackT <= 0) { p.attackT = 0.4; const dmg = Game.onShip ? (seasonTier() >= 7 ? 30 : 15) : w.dmg; e.damage(dmg); if (w === WEAPONS.fists && Math.random() < 0.15) Game.notify('Your fists barely scratch it. Press 2-5 to draw a weapon.', 'warn'); } }
+    else if (!p.path.length || Math.random() < dt * 2) p.path = findPath(Game.world.gen, p.layer, p.x, p.z, e.x, e.z, !!Game.onShip, isBlockedTile, 800);
+  } else if (p.target && p.target.dead) p.target = null;
+  // regen
+  if (p.hp < p.maxHp && !Game.isNight) { p.hp = Math.min(p.maxHp, p.hp + dt * 1.5); p.updateBar(); }
+  if (p.dead) respawn();
+}
+function harvest(o) {
+  const y = RESOURCE_YIELD[o.type]; if (!y) return;
+  const parts = [];
+  for (const k in y) { if (k === 'coins') Game.state.coins += y[k]; else Game.state.inv[k] = (Game.state.inv[k] || 0) + y[k]; parts.push('+' + y[k] + ' ' + k); }
+  Game.world.removeObjectAt(o.wx + 0.5, o.wz + 0.5, Game.player.layer);
+  Game.notify(parts.join(', '));
+  unlockAchievement('first_' + o.type, 8); addExp(2);
+  Game.emit('inv');
+}
+function embark(ship) { Game.onShip = ship; Game.player.speed = 6.5; Game.notify('You board the ' + BUILD_RECIPES.ship.name + '. Sail with WASD or click. Step onto land to disembark.'); unlockAchievement('set_sail', 30); }
+function disembark() { Game.onShip.mesh.position.set(Game.onShip.x, 0, Game.onShip.z); Game.onShip = null; Game.player.speed = 4.2; Game.notify('You go ashore.'); }
+function respawn() {
+  const p = Game.player, hall = townHall();
+  const at = hall ? Game.world.nearestWalkable(hall.x + 2, hall.z + 2, 'surface') : Game.world.nearestWalkable(8, 8, 'surface');
+  p.dead = false; p.hp = p.maxHp; p.updateBar();
+  const lossCoins = Math.floor(Game.state.coins * 0.1); Game.state.coins -= lossCoins;
+  if (Game.onShip) disembark();
+  switchLayer('surface', true); p.x = at.x; p.z = at.z; p.path = []; p.target = null;
+  Game.notify('You fell. You wake at ' + (hall ? 'the Town Hall' : 'camp') + ' minus ' + lossCoins + ' coins.', 'warn');
+  Game.emit('hp'); Game.emit('inv');
+}
+
+/* Layer switch (Sky / Surface / Depths): the player is moved to the nearest
+   walkable tile on the destination layer at the same x/z. */
+function switchLayer(layer, silent) {
+  const p = Game.player; if (p.layer === layer) return;
+  if (Game.onShip) disembark();
+  p.layer = layer; p.path = []; p.target = null; p.targetObj = null;
+  Game.world.setLayer(layer);
+  Game.world.update(p.x, p.z);
+  const q = Game.world.nearestWalkable(p.x, p.z, layer);
+  p.x = q.x; p.z = q.z; p.y = Game.world.heightAt(q.x, q.z, layer);
+  for (const b of Game.buildings) b.mesh.visible = b.layer === layer;
+  for (const m of Game.rivalMeshes) m.visible = layer === 'surface';
+  for (const n of Game.npcs) n.root.visible = layer === 'surface';
+  if (layer === 'sky') Game.state.stats.visitedSky = true;
+  if (layer === 'depths') Game.state.stats.visitedDepths = true;
+  if (!silent) Game.notify(layer === 'sky' ? 'You ascend to the sky isles.' : layer === 'depths' ? 'You descend into the depths. Watch for magma.' : 'You return to the surface.');
+  Game.emit('layer', layer);
+}
+
+/* ------------------------------------------------------------------ */
+/* Town naming with a daily cooldown                                    */
+/* ------------------------------------------------------------------ */
+function renameTown(name) {
+  const s = Game.state; name = (name || '').trim().slice(0, 24);
+  if (!name) return { ok: false, why: 'Enter a name.' };
+  const left = RENAME_COOLDOWN - (Date.now() - s.lastRename);
+  if (s.townNamed && left > 0) return { ok: false, why: 'Rename available in ' + Math.ceil(left / 3600000) + 'h.' };
+  s.townName = name; s.townNamed = true; s.lastRename = Date.now();
+  Game.notify('Your settlement is now called ' + name + '.', 'good'); Game.emit('town'); save();
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Input: WASD, wheel zoom, click-to-path / target, build placement    */
+/* ------------------------------------------------------------------ */
+const raycaster = new THREE.Raycaster();
+const mouseNdc = new THREE.Vector2();
+function screenToWorld(cx, cy) {
+  mouseNdc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouseNdc, Game.camera);
+  const hits = raycaster.intersectObjects(Game.world.terrainMeshes(), false);
+  return hits.length ? hits[0].point : null;
+}
+function pickEntity(cx, cy) {
+  mouseNdc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouseNdc, Game.camera);
+  const all = [...Game.enemies, ...Game.npcs].filter(e => !e.dead && e.root.visible);
+  const bodies = all.map(e => e.body);
+  const hits = raycaster.intersectObjects(bodies, false);
+  return hits.length ? all[bodies.indexOf(hits[0].object)] : null;
+}
+function initInput() {
+  const c = Game.renderer.domElement;
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    const k = e.key.toLowerCase(); Game.keys[k] = true;
+    if (k >= '1' && k <= '5') selectSlot(+k - 1);
+    if (k === 'escape') { setBuildMode(null); if (Game.selected) { Game.selected.setSelected(false); Game.selected = null; Game.emit('select', null); } }
+  });
+  addEventListener('keyup', e => { Game.keys[e.key.toLowerCase()] = false; });
+  c.addEventListener('wheel', e => { Game.zoom = Math.max(6, Math.min(40, Game.zoom + Math.sign(e.deltaY) * 1.6)); }, { passive: true });
+  c.addEventListener('mousemove', e => { Game.mouse = { x: e.clientX, y: e.clientY }; });
+  c.addEventListener('contextmenu', e => e.preventDefault());
+  c.addEventListener('mousedown', e => {
+    if (e.button === 2) { setBuildMode(null); return; }
+    if (Game.buildMode) { const w = screenToWorld(e.clientX, e.clientY); if (w) { const R = BUILD_RECIPES[Game.buildMode]; const off = R.size % 2 ? 0.5 : 0; placeBuilding(Game.buildMode, Math.floor(w.x) + off, Math.floor(w.z) + off, Game.player.layer); if (!e.shiftKey) setBuildMode(null); } return; }
+    const ent = pickEntity(e.clientX, e.clientY);
+    if (ent) {
+      if (ent.faction === 'enemy') { Game.player.target = ent; Game.player.targetObj = null; Game.notify('Targeting ' + ent.name + '.'); }
+      else { if (Game.selected) Game.selected.setSelected(false); Game.selected = ent; ent.setSelected(true); Game.emit('select', ent); }
+      return;
+    }
+    const w = screenToWorld(e.clientX, e.clientY);
+    if (w) interactAt(w.x, w.z);
+  });
+}
+function setBuildMode(type) {
+  Game.buildMode = type;
+  if (Game.ghost) { Game.scene.remove(Game.ghost); Game.ghost = null; }
+  if (type) {
+    const t = Game.world.gen.tile(Math.floor(Game.player.x), Math.floor(Game.player.z), Game.player.layer);
+    Game.ghost = buildingMesh(type, BIOMES[t.biome].arch, 0);
+    Game.ghost.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; o.castShadow = false; } });
+    Game.scene.add(Game.ghost);
+  }
+  Game.emit('buildMode', type);
+}
+function updateGhost() {
+  if (!Game.ghost || !Game.mouse) return;
+  const w = screenToWorld(Game.mouse.x, Game.mouse.y); if (!w) return;
+  const R = BUILD_RECIPES[Game.buildMode]; const off = R.size % 2 ? 0.5 : 0;
+  const x = Math.floor(w.x) + off, z = Math.floor(w.z) + off;
+  Game.ghost.position.set(x, Game.world.heightAt(x, z), z);
+  const ok = canPlace(Game.buildMode, x, z, Game.player.layer);
+  Game.ghost.traverse(o => { if (o.isMesh) o.material.color.setHex(ok.ok ? 0x8fcf6a : 0xc0392b); });
+  Game.ghostStatus = ok;
+}
+
+/* ------------------------------------------------------------------ */
+/* Camera: smooth follow, isometric offset, zoom                        */
+/* ------------------------------------------------------------------ */
+function updateCamera(dt) {
+  const p = Game.player;
+  Game.camTarget.lerp(new THREE.Vector3(p.x, p.y, p.z), Math.min(1, dt * 5));
+  Game.camera.position.copy(Game.camTarget).add(Game.camOffset);
+  Game.camera.lookAt(Game.camTarget);
+  const a = innerWidth / innerHeight, z = Game.zoom;
+  if (Game.camera.top !== z) { Game.camera.left = -z * a; Game.camera.right = z * a; Game.camera.top = z; Game.camera.bottom = -z; Game.camera.updateProjectionMatrix(); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Main loop                                                            */
+/* ------------------------------------------------------------------ */
+let raidTimer = 40, saveTimer = 0, shipTimer = 60, questTimer = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - Game.lastFrame) / 1000 || 0.016); Game.lastFrame = now;
+  Game.time += dt;
+  const p = Game.player;
+  updatePlayer(dt);
+  Game.world.update(p.x, p.z);
+  updateNpcs(dt);
+  updateEnemies(dt);
+  updateRivals(dt);
+  updateLighting();
+  updateCamera(dt);
+  updateGhost();
+  const q = Game.camera.quaternion;
+  p.animate(dt, q, p.target && !p.target.dead ? p.target : null);
+  for (const n of Game.npcs) if (!n.dead) n.animate(dt, q, null);
+  for (const e of Game.enemies) e.animate(dt, q, Math.hypot(e.x - p.x, e.z - p.z) < 8 ? p : null);
+  for (const b of Game.buildings) b.mesh.traverse(o => { if (o.userData.spin) o.rotation.y += dt; if (o.userData.flag) o.rotation.y = Math.sin(Game.time * 3) * 0.3; });
+  // raids at night, corsairs at sea
+  if (Game.isNight && townHall()) { raidTimer -= dt; if (raidTimer <= 0) { raidTimer = 70 + Math.random() * 60; spawnRaid(2 + Math.min(6, Math.floor(Game.state.level / 2)) + (seasonTier() >= 6 ? 2 : 0)); } }
+  if (Game.onShip) { shipTimer -= dt; if (shipTimer <= 0) { shipTimer = 45 + Math.random() * 40; spawnEnemyShip(); } }
+  questTimer -= dt; if (questTimer <= 0) { questTimer = 1; updateQuests(); Game.emit('tick'); }
+  saveTimer += dt; if (saveTimer > 12) { saveTimer = 0; save(); }
+  Game.renderer.render(Game.scene, Game.camera);
+}
+
+/* ------------------------------------------------------------------ */
+/* Login slideshow: renders live snapshots of a throwaway world onto   */
+/* the background canvas and cycles through biomes with a crossfade.  */
+/* ------------------------------------------------------------------ */
+const Preview = { running: false };
+function startPreview() {
+  const canvas = document.getElementById('bg'); if (!canvas) return;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputEncoding = THREE.sRGBEncoding;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0e0d10); scene.fog = new THREE.Fog(0x0e0d10, 50, 90);
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+  const offset = new THREE.Vector3(1, Math.SQRT2, 1).normalize().multiplyScalar(90);
+  scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x3a2a1a, 0.6));
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  const sc = sun.shadow.camera; sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.far = 200; scene.add(sun); scene.add(sun.target);
+  const world = new World(scene, Math.floor(Math.random() * 1e9), new Set(), () => false);
+  const props = new THREE.Group(); scene.add(props);
+  const ents = [];
+  const fade = document.getElementById('bg-fade');
+  Preview.running = true; Preview.renderer = renderer;
+  let shot = 0, timer = 0, last = performance.now();
+  const layers = ['surface', 'surface', 'surface', 'sky', 'depths', 'surface'];
+  function newShot() {
+    const layer = layers[shot % layers.length];
+    world.setLayer(layer);
+    let x, z;
+    for (let i = 0; i < 40; i++) { x = (Math.random() - 0.5) * 3000; z = (Math.random() - 0.5) * 3000; const t = world.gen.tile(Math.floor(x), Math.floor(z), layer); if (t.exists && !t.wall && t.biome !== 'water' && t.biome !== 'lava') break; }
+    const p = world.nearestWalkable(x, z, layer); x = p.x; z = p.z;
+    world.update(x, z);
+    // dress the shot: a local-style hall, a few houses, citizens, a beast
+    while (props.children.length) props.remove(props.children[0]);
+    for (const e of ents) scene.remove(e.root); ents.length = 0;
+    const biome = world.gen.tile(Math.floor(x), Math.floor(z), layer).biome, arch = BIOMES[biome].arch;
+    const y = world.heightAt(x, z, layer);
+    const hall = buildingMesh('townhall', arch, 0); hall.position.set(x, y, z); props.add(hall);
+    for (let i = 0; i < 4; i++) { const q = world.nearestWalkable(x + Math.cos(i * 1.6) * 4.5, z + Math.sin(i * 1.6) * 4.5, layer); const h = buildingMesh('house', arch, i); h.position.set(q.x, world.heightAt(q.x, q.z, layer), q.z); props.add(h); }
+    for (let i = 0; i < 4; i++) { const q = world.nearestWalkable(x + (Math.random() - 0.5) * 10, z + (Math.random() - 0.5) * 10, layer); const e = new Entity({ shape: i === 0 ? 'diamond' : i === 3 ? 'square' : 'circle', color: i === 3 ? 0xa8b0b8 : 0xe0cfa8, faction: 'player', gear: i === 3 ? ['spear', 'shield'] : [], x: q.x, z: q.z, layer }); e.y = world.heightAt(q.x, q.z, layer); scene.add(e.root); ents.push(e); }
+    const B = BEASTS[biome] || BEASTS.forest; const q = world.nearestWalkable(x + 7, z - 5, layer);
+    const b = new Entity({ shape: B.shape, color: B.color, name: B.name, hp: B.hp, faction: 'enemy', x: q.x, z: q.z, layer }); b.y = world.heightAt(q.x, q.z, layer); scene.add(b.root); ents.push(b);
+    const dayT = 0.15 + Math.random() * 0.25;
+    const a = dayT * Math.PI * 2, day = Math.max(0.2, Math.sin(a));
+    sun.position.set(x + Math.cos(a) * 60, y + 20 + day * 60, z + 30); sun.target.position.set(x, y, z);
+    sun.intensity = 0.3 + day * 1.1; scene.background.setRGB(0.05 + day * 0.35, 0.05 + day * 0.5, 0.09 + day * 0.7); scene.fog.color.copy(scene.background);
+    if (layer === 'depths') { scene.background.setHex(0x06050a); scene.fog.color.setHex(0x06050a); sun.color.setHex(0xff9a5a); } else sun.color.setHex(0xfff1d6);
+    Preview.target = new THREE.Vector3(x, y, z); Preview.zoom = 11 + Math.random() * 6;
+    const label = document.getElementById('bg-label'); if (label) label.textContent = (layer === 'surface' ? BIOMES[biome].name : layer === 'sky' ? 'Sky isles' : 'The Depths') + '  ' + Math.round(x) + ', ' + Math.round(z);
+    shot++;
+  }
+  newShot();
+  function loop(now) {
+    if (!Preview.running) return;
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; timer += dt;
+    if (timer > 5.5) { fade.style.opacity = 1; if (timer > 6.3) { newShot(); timer = 0; setTimeout(() => { fade.style.opacity = 0; }, 60); } }
+    const a = innerWidth / innerHeight, zf = Preview.zoom + timer * 0.25;   // slow push-in per shot
+    cam.left = -zf * a; cam.right = zf * a; cam.top = zf; cam.bottom = -zf; cam.updateProjectionMatrix();
+    cam.position.copy(Preview.target).add(offset); cam.lookAt(Preview.target);
+    for (const e of ents) e.animate(dt, cam.quaternion, null);
+    if (renderer.domElement.width !== innerWidth) renderer.setSize(innerWidth, innerHeight);
+    renderer.render(scene, cam);
+  }
+  requestAnimationFrame(loop);
+}
+function stopPreview() {
+  if (!Preview.running) return;
+  Preview.running = false;
+  try { Preview.renderer.dispose(); } catch (e) { /* ignore */ }
+  const c = document.getElementById('bg'); if (c) c.style.display = 'none';
+}
+
+/* ------------------------------------------------------------------ */
+/* NetAdapter: the surface a real multiplayer backend would implement. */
+/* The shipped build runs offline; alliances and neighbours are AI     */
+/* stand-ins. Plug a WebSocket or PeerJS mesh into these hooks to      */
+/* exchange the same JSON the save file uses.                          */
+/* ------------------------------------------------------------------ */
+const NetAdapter = {
+  connected: false,
+  connect(user) { this.connected = false; Game.notify('Playing in local mode. Neighbours are simulated colonies.'); void user; },
+  sendState() { /* broadcast Game.state diff */ },
+  onRemoteState(fn) { void fn; },
+};
+
+/* ------------------------------------------------------------------ */
+/* Bootstrap - called by ui.js once the auth screen is passed          */
+/* ------------------------------------------------------------------ */
+function startGame(user) {
+  SAVE_KEY = saveKeyFor(user);
+  Game.state = load();
+  if (user) Game.state.user = user;
+  if (!Game.state.spawnChosen) {
+    // New account: show the whole world and let the player pick a spawn point.
+    Game.gen = new WorldGen(Game.state.seed);
+    Game.emit('chooseSpawn', Game.gen);
+    return;
+  }
+  finishStart();
+}
+/* Called by the spawn picker with a world tile; snaps to the nearest walkable surface tile. */
+function chooseSpawn(x, z) {
+  const gen = Game.gen || new WorldGen(Game.state.seed);
+  x = Math.floor(x); z = Math.floor(z);
+  let found = null;
+  for (let r = 0; r < 80 && !found; r++) for (let dx = -r; dx <= r && !found; dx++) for (let dz = -r; dz <= r && !found; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+    if (gen.walkable(x + dx, z + dz, 'surface', false)) found = { x: x + dx + 0.5, z: z + dz + 0.5 };
+  }
+  if (!found) return { ok: false, why: 'No land near that point. Pick somewhere on a biome, not open ocean.' };
+  Game.state.player = { x: found.x, z: found.z, layer: 'surface', hp: 100 };
+  Game.state.spawnChosen = true;
+  finishStart();
+  return { ok: true };
+}
+function resetAllAccounts() {
+  try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.indexOf('boe_') === 0) localStorage.removeItem(k); } } catch (e) { /* ignore */ }
+}
+function finishStart() {
+  stopPreview();
+  initScene(); initWorld(); initInput();
+  simulateOffline();
+  NetAdapter.connect(Game.state.user);
+  addEventListener('beforeunload', save);
+  Game.emit('ready');
+  Game.lastFrame = performance.now();
+  requestAnimationFrame(frame);
+}
+
+Object.assign(Game, { startGame, startPreview, stopPreview, teleport, chooseSpawn, selectSlot, currentWeapon, WEAPONS, resetAllAccounts, placeBuilding, canPlace, setBuildMode, setNpcRole, switchLayer, renameTown, requestAlliance, proposeTreaty, seasonTier, recipeUnlocked, townHall, save, defenseMultiplier, SEASON_PASS, QUESTS, BUILD_RECIPES, TERRITORY_RADIUS, RENAME_COOLDOWN });
+if (typeof module !== 'undefined') module.exports = { Game, defaultState, SEASON_PASS, QUESTS };
+
+</script>
+<script>
+/* =====================================================================
+   BIOMES OF ETERNITY - ui.js
+   DOM overlay: sign-in simulation, town header, inventory bar, build
+   menu with locked-progression overlays, layer switcher, quest HUD,
+   settler panel, alliance panel, minimap, offline report. All icons are
+   inline SVG primitives (no emoji, no image files).
+   ===================================================================== */
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+
+  const ICON = {
+    wood: '<svg viewBox="0 0 16 16"><rect x="3" y="2" width="10" height="12" rx="2"/><line x1="8" y1="2" x2="8" y2="14"/></svg>',
+    stone: '<svg viewBox="0 0 16 16"><polygon points="8,2 14,6 12,13 4,13 2,6"/></svg>',
+    fiber: '<svg viewBox="0 0 16 16"><path d="M4 14 C4 6 8 4 8 2 M8 14 C8 8 10 6 12 3 M6 14 C6 9 3 8 2 6"/></svg>',
+    ore: '<svg viewBox="0 0 16 16"><polygon points="8,1 15,8 8,15 1,8"/><circle cx="8" cy="8" r="2"/></svg>',
+    crystal: '<svg viewBox="0 0 16 16"><polygon points="8,1 12,8 8,15 4,8"/></svg>',
+    food: '<svg viewBox="0 0 16 16"><circle cx="8" cy="9" r="5"/><line x1="8" y1="1" x2="8" y2="4"/></svg>',
+    coins: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>',
+    circle: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>',
+    diamond: '<svg viewBox="0 0 16 16"><polygon points="8,1 15,8 8,15 1,8"/></svg>',
+    square: '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12"/></svg>',
+    lock: '<svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="8" rx="1"/><path d="M5 7 V5 a3 3 0 0 1 6 0 V7"/></svg>',
+    sky: '<svg viewBox="0 0 16 16"><path d="M2 10 h12 M4 6 h8 M6 3 h4"/></svg>',
+    surface: '<svg viewBox="0 0 16 16"><path d="M1 12 L5 6 L8 9 L11 4 L15 12 Z"/></svg>',
+    depths: '<svg viewBox="0 0 16 16"><path d="M2 3 h12 M4 3 v9 h8 V3"/><polygon points="8,7 10,10 6,10"/></svg>',
+    mail: '<svg viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4 L8 9 L15 4"/></svg>',
+  };
+  const RES = ['wood', 'stone', 'fiber', 'ore', 'crystal', 'food'];
+
+  /* ---------- MapView: pannable, zoomable world map sampled straight from the generator ---------- */
+  const MATERIALS = {
+    wood:    { name: 'Wood',    from: 'Trees (forest, plains, swamp), spruce (arctic), acacia (savanna)', use: 'Houses, palisades, docks, ships' },
+    stone:   { name: 'Stone',   from: 'Rocks in every biome; plentiful in the desert and the Depths', use: 'Town Hall, towers, forge, shrine' },
+    fiber:   { name: 'Fiber',   from: 'Grass clumps (plains, savanna, swamp), cactus (desert)', use: 'Thatch roofs, farm plots, sails' },
+    ore:     { name: 'Ore',     from: 'Ore veins in the Depths', use: 'Forge (iron gear, +defense)' },
+    crystal: { name: 'Crystal', from: 'Sky isles and rare Depths pockets', use: 'Sky Shrine; also sells for coins' },
+    food:    { name: 'Food',    from: 'Farm plots worked by settlers assigned to Farm', use: 'Keeps settlers content; trades for coins' },
+  };
+  class MapView {
+    constructor(canvas, gen, opts) {
+      this.c = canvas; this.ctx = canvas.getContext('2d'); this.gen = gen;
+      this.cx = opts.cx || 0; this.cz = opts.cz || 0; this.span = opts.span || 600; this.layer = opts.layer || 'surface';
+      this.onPick = opts.onPick; this.overlays = opts.overlays || (() => []);
+      this.cell = 3; this.drag = null; this.dirty = true; this.lastDraw = 0;
+      canvas.addEventListener('mousedown', e => { this.drag = { x: e.clientX, y: e.clientY, cx: this.cx, cz: this.cz, moved: false }; });
+      addEventListener('mousemove', e => { if (!this.drag) return; const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y; if (Math.hypot(dx, dy) > 3) this.drag.moved = true; this.cx = this.drag.cx - dx * this.span / this.c.width; this.cz = this.drag.cz - dy * this.span / this.c.width; this.dirty = true; });
+      addEventListener('mouseup', e => { if (!this.drag) return; const d = this.drag; this.drag = null; if (!d.moved && this.onPick && e.target === canvas) { const w = this.toWorld(e); this.onPick(w.x, w.z); } });
+      canvas.addEventListener('wheel', e => { e.preventDefault(); const w = this.toWorld(e); this.span = Math.max(80, Math.min(4000, this.span * (e.deltaY > 0 ? 1.25 : 0.8))); const w2 = this.toWorld(e); this.cx += w.x - w2.x; this.cz += w.z - w2.z; this.dirty = true; }, { passive: false });
+      this.keys = e => { if (this.c.offsetParent === null || e.target.tagName === 'INPUT') return; const st = this.span * 0.08; if (e.key === 'ArrowLeft') this.cx -= st; if (e.key === 'ArrowRight') this.cx += st; if (e.key === 'ArrowUp') this.cz -= st; if (e.key === 'ArrowDown') this.cz += st; this.dirty = true; };
+      addEventListener('keydown', this.keys);
+      const loop = () => { if (this.c.offsetParent !== null && this.dirty && performance.now() - this.lastDraw > 50) this.draw(); requestAnimationFrame(loop); }; loop();
+    }
+    toWorld(e) { const r = this.c.getBoundingClientRect(); const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height; return { x: this.cx + (px - 0.5) * this.span, z: this.cz + (py - 0.5) * this.span * (this.c.height / this.c.width) }; }
+    toPx(x, z) { return [(x - this.cx) / this.span * this.c.width + this.c.width / 2, (z - this.cz) / this.span * this.c.width + this.c.height / 2]; }
+    draw() {
+      this.dirty = false; this.lastDraw = performance.now();
+      const W = this.c.width, H = this.c.height, cell = this.cell, ctx = this.ctx;
+      const img = ctx.createImageData(W, H), tpp = this.span / W;
+      for (let py = 0; py < H; py += cell) for (let px = 0; px < W; px += cell) {
+        const wx = Math.floor(this.cx + (px - W / 2) * tpp), wz = Math.floor(this.cz + (py - H / 2) * tpp);
+        const t = this.gen.tile(wx, wz, this.layer);
+        let col = t.exists ? BIOMES[t.biome].ground : 0x0a0a0c;
+        const r = ((col >> 16) & 255) * (t.exists ? 0.75 + t.h * 0.08 : 1), g = ((col >> 8) & 255) * (t.exists ? 0.75 + t.h * 0.08 : 1), b = (col & 255) * (t.exists ? 0.75 + t.h * 0.08 : 1);
+        for (let y = 0; y < cell && py + y < H; y++) for (let x = 0; x < cell && px + x < W; x++) { const k = ((py + y) * W + px + x) * 4; img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255; }
+      }
+      ctx.putImageData(img, 0, 0);
+      for (const o of this.overlays()) {
+        const [x, y] = this.toPx(o.x, o.z);
+        if (o.radius) { ctx.strokeStyle = o.color; ctx.beginPath(); ctx.arc(x, y, o.radius / this.span * W, 0, Math.PI * 2); ctx.stroke(); continue; }
+        ctx.fillStyle = o.color; ctx.fillRect(x - o.size / 2, y - o.size / 2, o.size, o.size);
+        if (o.label) { ctx.fillStyle = '#e6dcc3'; ctx.font = '11px monospace'; ctx.fillText(o.label, x + 6, y + 4); }
+      }
+      ctx.fillStyle = 'rgba(230,220,195,0.7)'; ctx.font = '11px monospace';
+      ctx.fillText(Math.round(this.cx) + ', ' + Math.round(this.cz) + '   span ' + Math.round(this.span) + ' tiles', 8, H - 8);
+    }
+  }
+  function gameOverlays() {
+    const out = []; const p = Game.player, hall = Game.townHall();
+    if (hall) out.push({ x: hall.x, z: hall.z, radius: Game.TERRITORY_RADIUS, color: 'rgba(232,196,120,0.7)' });
+    for (const b of Game.buildings) if (b.layer === p.layer) out.push({ x: b.x, z: b.z, size: 4, color: '#e8c478' });
+    if (p.layer === 'surface') for (const r of Game.state.rivals) out.push({ x: r.x, z: r.z, size: 6, color: '#9fc4ff', label: r.name + (r.relation === 'ally' ? ' (ally)' : '') });
+    for (const e of Game.enemies) if (e.layer === p.layer) out.push({ x: e.x, z: e.z, size: 4, color: '#c0392b' });
+    out.push({ x: p.x, z: p.z, size: 6, color: '#ffffff', label: 'You' });
+    return out;
+  }
+  let worldMap = null, spawnMap = null, mapTp = null;
+  function mapTpMark() { return mapTp ? [{ x: mapTp.x, z: mapTp.z, size: 10, color: mapTp.ok ? '#8fbf6a' : '#c0392b', label: 'target' }] : []; }
+  function doTeleport() { if (!mapTp || !mapTp.ok) return; if (Game.teleport(mapTp.x, mapTp.z)) { $('#map').classList.add('hidden'); mapTp = null; } }
+  function openWorldMap() {
+    const panel = $('#map'); panel.classList.toggle('hidden'); if (panel.classList.contains('hidden')) return;
+    if (!worldMap) worldMap = new MapView($('#map-canvas'), Game.world.gen, { cx: Game.player.x, cz: Game.player.z, span: 400, overlays: () => gameOverlays().concat(mapTpMark()), onPick: (x, z) => {
+      const t = Game.world.gen.tile(Math.floor(x), Math.floor(z), Game.player.layer);
+      const ok = t.exists && !t.wall && t.biome !== 'water';
+      mapTp = { x, z, ok };
+      $('#map-tp').disabled = !ok;
+      $('#map-tp').textContent = ok ? 'Travel here  A' : 'Pick solid ground';
+      $('#map-info').textContent = (t.exists ? BIOMES[t.biome].name : 'Open air') + ' at ' + Math.round(x) + ', ' + Math.round(z);
+      worldMap.dirty = true;
+    } });
+    worldMap.layer = Game.player.layer; worldMap.cx = Game.player.x; worldMap.cz = Game.player.z; worldMap.dirty = true;
+    mapTp = null; $('#map-tp').disabled = true; $('#map-tp').textContent = 'Click the map, then travel'; $('#map-info').textContent = 'Click anywhere to choose a destination.';
+  }
+  function renderMaterials() {
+    const box = $('#mat-list'); box.innerHTML = '';
+    for (const k in MATERIALS) { const m = MATERIALS[k]; box.appendChild(el('div', 'mat-row', '<div class="mat-head">' + ICON[k] + '<b>' + m.name + '</b><span class="mat-n">' + (Game.state.inv[k] || 0) + '</span></div><div class="mat-meta">Found: ' + m.from + '</div><div class="mat-meta">Used for: ' + m.use + '</div>')); }
+    box.appendChild(el('div', 'mat-row', '<div class="mat-head">' + ICON.coins + '<b>Coins</b><span class="mat-n">' + Game.state.coins + '</span></div><div class="mat-meta">Found: monster hunts, hauler trade runs, farm surplus, sunk corsairs</div><div class="mat-meta">Used for: ships, treaties</div>'));
+  }
+  /* Spawn picker: shown once per account, before the 3D world is created. */
+  Game.on('chooseSpawn', gen => {
+    $('#auth').classList.add('hidden'); $('#spawn').classList.remove('hidden');
+    const overlays = () => Game.state.rivals ? Game.state.rivals.map(r => ({ x: r.x, z: r.z, size: 6, color: '#9fc4ff', label: r.name })) : [];
+    spawnMap = new MapView($('#spawn-canvas'), gen, { cx: 0, cz: 0, span: 1600, overlays, onPick: (x, z) => {
+      const t = gen.tile(Math.floor(x), Math.floor(z), 'surface');
+      $('#spawn-pick').textContent = (t.biome === 'water' ? 'Ocean' : BIOMES[t.biome].name) + ' at ' + Math.round(x) + ', ' + Math.round(z) + (t.biome === 'water' ? ' - choose land' : '');
+      $('#spawn-ok').disabled = t.biome === 'water'; $('#spawn-ok').dataset.x = x; $('#spawn-ok').dataset.z = z;
+    } });
+    $('#spawn-ok').addEventListener('click', () => { const r = Game.chooseSpawn(+$('#spawn-ok').dataset.x, +$('#spawn-ok').dataset.z); if (r.ok) $('#spawn').classList.add('hidden'); else $('#spawn-pick').textContent = r.why; });
+  });
+
+  /* ---------- Accounts ----------
+     Local accounts: email + salted SHA-256 password hash in localStorage. There is no
+     server, so "forgot password" cannot really send mail. Instead the reset code is
+     delivered to a simulated inbox rendered on the sign-in screen. ---------- */
+  const ACCOUNTS_KEY = 'boe_accounts_v1';
+  const Accounts = {
+    all() { try { return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '{}'); } catch (e) { return {}; } },
+    write(a) { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(a)); },
+    async hash(pw, salt) {
+      const txt = salt + ':' + pw;
+      if (window.crypto && crypto.subtle) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      let h = 2166136261; for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); } return 'fnv:' + (h >>> 0).toString(16);   // fallback for non-secure contexts
+    },
+    salt() { return Math.random().toString(36).slice(2) + Date.now().toString(36); },
+    async create(email, pw, name) {
+      const a = this.all(); if (a[email]) return { ok: false, why: 'An account already exists for that email. Sign in instead.' };
+      if (pw.length < 6) return { ok: false, why: 'Password needs at least 6 characters.' };
+      name = (name || '').trim().slice(0, 20);
+      if (name.length < 2) return { ok: false, why: 'Choose a username of at least 2 characters.' };
+      if (Object.keys(a).some(k => (a[k].name || '').toLowerCase() === name.toLowerCase())) return { ok: false, why: 'That username is taken on this device. Pick another.' };
+      const salt = this.salt(); a[email] = { salt, hash: await this.hash(pw, salt), name, created: Date.now() };
+      this.write(a); return { ok: true, user: { email, name, provider: 'gmail-sim' } };
+    },
+    async signIn(email, pw) {
+      const a = this.all(); const acc = a[email]; if (!acc) return { ok: false, why: 'No account for that email. Create one below.' };
+      if (await this.hash(pw, acc.salt) !== acc.hash) return { ok: false, why: 'Wrong password. Use "Forgot password" to reset it.' };
+      return { ok: true, user: { email, name: acc.name, provider: 'gmail-sim' } };
+    },
+    requestReset(email) {
+      const a = this.all(); if (!a[email]) return { ok: false, why: 'No account for that email.' };
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      a[email].reset = { code, expires: Date.now() + 10 * 60 * 1000 }; this.write(a);
+      return { ok: true, code };
+    },
+    async completeReset(email, code, pw) {
+      const a = this.all(); const acc = a[email]; if (!acc || !acc.reset) return { ok: false, why: 'No reset was requested for that email.' };
+      if (Date.now() > acc.reset.expires) { delete acc.reset; this.write(a); return { ok: false, why: 'That code expired. Request a new one.' }; }
+      if (acc.reset.code !== code.trim()) return { ok: false, why: 'That code does not match the one in your inbox.' };
+      if (pw.length < 6) return { ok: false, why: 'Password needs at least 6 characters.' };
+      acc.salt = this.salt(); acc.hash = await this.hash(pw, acc.salt); delete acc.reset; this.write(a);
+      return { ok: true };
+    },
+  };
+  function initAuth() {
+    const modal = $('#auth');
+    const emailOf = () => ($('#auth-email').value || '').trim().toLowerCase();
+    const valid = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+    const err = m => { $('#auth-err').textContent = m || ''; };
+    const enter = user => { try { Game.startGame(user); modal.classList.add('hidden'); } catch (e) { err('Startup error: ' + e.message); console.error(e); } };
+    const showMode = m => { $('#auth-login').classList.toggle('hidden', m !== 'login'); $('#auth-forgot').classList.toggle('hidden', m !== 'forgot'); err(''); };
+    $('#auth-gmail').addEventListener('click', async () => {
+      const email = emailOf(), pw = $('#auth-pass').value;
+      if (!valid(email)) return err('Enter a valid email address.');
+      if (!pw) return err('Enter your password.');
+      const r = await Accounts.signIn(email, pw); if (!r.ok) return err(r.why);
+      $('#auth-gmail').textContent = 'Signing in...'; setTimeout(() => enter(r.user), 250);
+    });
+    $('#auth-create').addEventListener('click', async () => {
+      const email = emailOf(), pw = $('#auth-pass').value, name = ($('#auth-username').value || '').trim();
+      if (!valid(email)) return err('Enter a valid email address.');
+      const r = await Accounts.create(email, pw, name); if (!r.ok) return err(r.why);
+      err('Account created. Entering the world...'); setTimeout(() => enter(r.user), 250);
+    });
+    $('#auth-guest').addEventListener('click', () => { const name = ($('#auth-username').value || '').trim() || 'Wanderer'; enter({ email: '', name: name.slice(0, 20), provider: 'guest' }); });
+    $('#auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#auth-gmail').click(); });
+    $('#auth-reset').addEventListener('click', () => { if (confirm('Reset all accounts on this device? Every account and saved world is erased.')) { Game.resetAllAccounts(); err('All accounts reset.'); } });
+    // forgot password: code goes to the simulated inbox
+    $('#auth-forgot-link').addEventListener('click', () => { showMode('forgot'); $('#forgot-email').value = emailOf(); $('#inbox').classList.add('hidden'); $('#forgot-step2').classList.add('hidden'); });
+    $('#forgot-back').addEventListener('click', () => showMode('login'));
+    $('#forgot-send').addEventListener('click', () => {
+      const email = ($('#forgot-email').value || '').trim().toLowerCase();
+      if (!valid(email)) return err('Enter the account email.');
+      const r = Accounts.requestReset(email); if (!r.ok) return err(r.why);
+      err('');
+      $('#inbox').classList.remove('hidden'); $('#inbox-to').textContent = email; $('#inbox-code').textContent = r.code;
+      $('#inbox-time').textContent = new Date().toLocaleTimeString();
+      $('#forgot-step2').classList.remove('hidden'); $('#forgot-code').focus();
+    });
+    $('#forgot-done').addEventListener('click', async () => {
+      const email = ($('#forgot-email').value || '').trim().toLowerCase();
+      const r = await Accounts.completeReset(email, $('#forgot-code').value, $('#forgot-pass').value); if (!r.ok) return err(r.why);
+      showMode('login'); $('#auth-email').value = email; $('#auth-pass').value = ''; err('Password updated. Sign in with your new password.');
+    });
+  }
+
+  /* ---------- HUD ---------- */
+  function renderTown() {
+    const s = Game.state;
+    $('#town-name').textContent = s.townName;
+    $('#town-user').textContent = s.user && s.user.name ? s.user.name : 'Mayor';
+    renderExp();
+  }
+  function renderExp() {
+    const s = Game.state, tier = Game.seasonTier();
+    const next = Game.SEASON_PASS[tier] ? Game.SEASON_PASS[tier].exp : Game.SEASON_PASS[tier - 1].exp;
+    const prev = Game.SEASON_PASS[tier - 1].exp;
+    const f = next > prev ? (s.exp - prev) / (next - prev) : 1;
+    $('#lvl').textContent = 'LV ' + s.level;
+    $('#tier').textContent = 'TIER ' + tier;
+    $('#exp-fill').style.width = Math.round(f * 100) + '%';
+    $('#exp-text').textContent = s.exp + ' / ' + next + ' EXP';
+    $('#def').textContent = 'DEF x' + Game.defenseMultiplier().toFixed(2);
+    $('#coins').textContent = s.coins;
+  }
+  function renderHotbar() {
+    const bar = $('#hotbar'); bar.innerHTML = '';
+    const s = Game.state;
+    s.hotbar.forEach((w, i) => {
+      const W = w ? Game.WEAPONS[w] : null;
+      const d = el('button', 'slot' + (i === s.slot ? ' active' : '') + (W ? '' : ' empty'));
+      d.innerHTML = '<span class="k">' + (i + 1) + '</span>' + (W ? '<span class="w">' + W.name + '</span><span class="d">' + (W.guard ? 'blocks ' + Math.round((1 - W.guard) * 100) + '%' : W.dmg + ' dmg, reach ' + W.reach) + '</span>' : '<span class="w">empty</span>');
+      d.addEventListener('click', () => Game.selectSlot(i));
+      bar.appendChild(d);
+    });
+  }
+  function renderInv() {
+    const bar = $('#inv'); bar.innerHTML = '';
+    for (const r of RES) bar.appendChild(el('div', 'inv-slot', ICON[r] + '<span class="n">' + (Game.state.inv[r] || 0) + '</span><span class="l">' + r + '</span>'));
+    $('#coins').textContent = Game.state.coins;
+  }
+  function renderHp() {
+    const p = Game.player; $('#hp-fill').style.width = Math.round(p.hp / p.maxHp * 100) + '%';
+    $('#hp-text').textContent = Math.round(p.hp) + ' / ' + p.maxHp;
+  }
+  function renderLog(log) {
+    const box = $('#log'); box.innerHTML = '';
+    for (const l of log) box.appendChild(el('div', 'log-' + l.kind, l.msg));
+  }
+  function renderQuest() {
+    const q = Game.QUESTS[Game.state.questIndex];
+    $('#quest-idx').textContent = q ? 'QUEST ' + (Game.state.questIndex + 1) + ' / ' + Game.QUESTS.length : 'ALL QUESTS COMPLETE';
+    $('#quest-title').textContent = q ? q.title : 'The eternal biomes await';
+    $('#quest-desc').textContent = q ? q.desc : 'Expand, ally, and sail. Season tiers keep unlocking.';
+    $('#quest-exp').textContent = q ? '+' + q.exp + ' EXP' : '';
+  }
+
+  /* ---------- build menu with locked overlays ---------- */
+  function renderBuild() {
+    const grid = $('#build-grid'); grid.innerHTML = '';
+    const s = Game.state;
+    for (const type in Game.BUILD_RECIPES) {
+      const R = Game.BUILD_RECIPES[type];
+      const unlocked = Game.recipeUnlocked(type);
+      const afford = Object.keys(R.cost).every(k => (k === 'coins' ? s.coins : s.inv[k] || 0) >= R.cost[k]);
+      const card = el('button', 'build-card' + (unlocked ? '' : ' locked') + (afford ? '' : ' poor') + (Game.buildMode === type ? ' active' : ''));
+      card.innerHTML = '<div class="bc-shape">' + ICON.square + '</div><div class="bc-name">' + R.name + '</div><div class="bc-cost">' +
+        Object.keys(R.cost).map(k => '<span' + ((k === 'coins' ? s.coins : s.inv[k] || 0) < R.cost[k] ? ' class="short"' : '') + '>' + R.cost[k] + ' ' + k + '</span>').join(' ') +
+        '</div><div class="bc-desc">' + R.desc + '</div>' +
+        (unlocked ? '' : '<div class="bc-lock">' + ICON.lock + '<span>Season tier ' + (R.tier + 1) + '</span></div>');
+      card.disabled = !unlocked;
+      card.addEventListener('click', () => { Game.setBuildMode(Game.buildMode === type ? null : type); });
+      grid.appendChild(card);
+    }
+  }
+  function renderPass() {
+    const box = $('#pass'); box.innerHTML = '';
+    const tier = Game.seasonTier();
+    for (const t of Game.SEASON_PASS) box.appendChild(el('div', 'pass-tier' + (t.tier <= tier ? ' done' : ''), '<b>T' + t.tier + '</b><span>' + t.reward + '</span><i>' + t.exp + ' EXP, DEF x' + t.defense + '</i>'));
+  }
+
+  /* ---------- settler panel ---------- */
+  function renderSelect(n) {
+    const box = $('#settler');
+    if (!n) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    $('#settler-name').innerHTML = ICON[n.shape] + ' ' + n.name;
+    $('#settler-role').textContent = 'Currently: ' + n.role;
+    box.querySelectorAll('[data-role]').forEach(b => { b.classList.toggle('active', b.dataset.role === n.role); });
+  }
+  $('#settler').addEventListener('click', e => {
+    const b = e.target.closest('[data-role]'); if (!b || !Game.selected) return;
+    const nn = Game.setNpcRole(Game.selected, b.dataset.role); renderSelect(nn);
+  });
+
+  /* ---------- alliances ---------- */
+  function renderAlliance() {
+    const list = $('#ally-list'); list.innerHTML = '';
+    for (const r of Game.state.rivals) {
+      const row = el('div', 'ally-row');
+      const hall = Game.townHall();
+      const dist = hall ? Math.round(Math.hypot(hall.x - r.x, hall.z - r.z)) : Math.round(Math.hypot(Game.player.x - r.x, Game.player.z - r.z));
+      const isFriend = Game.state.friends.includes(r.name);
+      row.innerHTML = '<div class="ally-head">' + ICON.diamond + '<b>' + r.name + '</b><span class="rel rel-' + r.relation + '">' + r.relation + (r.treaty ? ' + treaty' : '') + '</span></div>' +
+        '<div class="ally-meta">' + dist + ' units away, power ' + r.power + ', ' + r.houses + ' houses' + (r.pending > 0 ? ', considering your request' : '') + '</div>';
+      const acts = el('div', 'ally-acts');
+      const f = el('button', 'btn small', isFriend ? 'Friend' : 'Add friend'); f.disabled = isFriend;
+      f.addEventListener('click', () => { Game.state.friends.push(r.name); Game.notify(r.name + ' added as a friend. Alliances come easier.'); renderAlliance(); });
+      const a = el('button', 'btn small', r.relation === 'ally' ? 'Allied' : 'Request alliance'); a.disabled = r.relation === 'ally' || r.pending > 0;
+      a.addEventListener('click', () => { Game.requestAlliance(r); renderAlliance(); });
+      const t = el('button', 'btn small', r.treaty ? 'Treaty active' : 'Defense treaty (20c)'); t.disabled = r.relation !== 'ally' || r.treaty;
+      t.addEventListener('click', () => { Game.proposeTreaty(r); renderAlliance(); });
+      acts.append(f, a, t); row.appendChild(acts); list.appendChild(row);
+    }
+    $('#ally-buffer').textContent = 'Territory buffer: ' + Game.TERRITORY_RADIUS + ' units. Neighbours cannot claim land inside your radius without an alliance; allies may share borders.';
+  }
+
+  /* ---------- minimap: samples the generator directly (no chunk needed) ---------- */
+  const mm = $('#minimap'), mctx = mm.getContext('2d');
+  function renderMinimap() {
+    const p = Game.player, N = 48, cell = mm.width / N, span = 96;
+    const img = mctx.createImageData(mm.width, mm.height);
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const wx = Math.floor(p.x + (i - N / 2) * span / N), wz = Math.floor(p.z + (j - N / 2) * span / N);
+      const t = Game.world.gen.tile(wx, wz, p.layer);
+      const col = t.exists ? BIOMES[t.biome].ground : 0x0a0a0c;
+      const r = (col >> 16) & 255, g = (col >> 8) & 255, b = col & 255;
+      for (let y = 0; y < cell; y++) for (let x = 0; x < cell; x++) {
+        const k = ((Math.floor(j * cell) + y) * mm.width + Math.floor(i * cell) + x) * 4;
+        img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255;
+      }
+    }
+    mctx.putImageData(img, 0, 0);
+    const toPx = (x, z) => [(x - p.x) / span * mm.width + mm.width / 2, (z - p.z) / span * mm.height + mm.height / 2];
+    const hall = Game.townHall();
+    if (hall && p.layer === 'surface') { const [hx, hz] = toPx(hall.x, hall.z); mctx.strokeStyle = 'rgba(232,196,120,0.7)'; mctx.beginPath(); mctx.arc(hx, hz, Game.TERRITORY_RADIUS / span * mm.width, 0, Math.PI * 2); mctx.stroke(); }
+    mctx.fillStyle = '#e8c478';
+    for (const b of Game.buildings) if (b.layer === p.layer) { const [x, z] = toPx(b.x, b.z); mctx.fillRect(x - 1.5, z - 1.5, 3, 3); }
+    mctx.fillStyle = '#c0392b';
+    for (const e of Game.enemies) if (e.layer === p.layer) { const [x, z] = toPx(e.x, e.z); mctx.fillRect(x - 1.5, z - 1.5, 3, 3); }
+    if (p.layer === 'surface') { mctx.fillStyle = '#9fc4ff'; for (const r of Game.state.rivals) { const [x, z] = toPx(r.x, r.z); mctx.fillRect(x - 2, z - 2, 4, 4); } }
+    mctx.fillStyle = '#fff'; mctx.beginPath(); mctx.arc(mm.width / 2, mm.height / 2, 2.5, 0, Math.PI * 2); mctx.fill();
+    const t = Game.world.gen.tile(Math.floor(p.x), Math.floor(p.z), p.layer);
+    $('#biome').textContent = (t.exists ? BIOMES[t.biome].name : 'Open air') + '  ' + Math.round(p.x) + ', ' + Math.round(p.z);
+  }
+
+  /* ---------- offline report ---------- */
+  function renderOffline(r) {
+    const box = $('#offline'); box.classList.remove('hidden');
+    $('#offline-body').innerHTML = 'You were away <b>' + r.hours + ' h</b>. Base armor multiplier <b>x' + r.armor + '</b> applied. ' +
+      '<b>' + r.guards + '</b> guard' + (r.guards === 1 ? '' : 's') + ' held the perimeter through <b>' + r.raids + '</b> raid' + (r.raids === 1 ? '' : 's') + ': ' +
+      '<b>' + r.repelled + '</b> repelled, <b>' + r.lost + '</b> broke through.' + (r.food ? ' Farmers stored <b>' + r.food + '</b> food.' : '');
+  }
+
+  /* ---------- wiring ---------- */
+  function initHud() {
+    document.querySelectorAll('[data-layer]').forEach(b => b.addEventListener('click', () => Game.switchLayer(b.dataset.layer)));
+    $('#btn-build').addEventListener('click', () => togglePanel('build'));
+    $('#btn-ally').addEventListener('click', () => togglePanel('ally'));
+    $('#btn-pass').addEventListener('click', () => togglePanel('pass-panel'));
+    $('#btn-map').addEventListener('click', openWorldMap);
+    $('#map-tp').addEventListener('click', doTeleport);
+    $('#btn-mat').addEventListener('click', () => togglePanel('materials'));
+    document.querySelectorAll('.close').forEach(c => c.addEventListener('click', () => c.closest('.panel').classList.add('hidden')));
+    $('#town-name').addEventListener('click', () => { $('#rename').classList.remove('hidden'); $('#rename-input').value = Game.state.townName; $('#rename-input').focus(); });
+    $('#rename-ok').addEventListener('click', () => { const r = Game.renameTown($('#rename-input').value); $('#rename-err').textContent = r.ok ? '' : r.why; if (r.ok) $('#rename').classList.add('hidden'); });
+    $('#rename-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('#rename-ok').click(); });
+    addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      const k = e.key.toLowerCase();
+      if (k === 'b') togglePanel('build'); if (k === 'f') togglePanel('ally'); if (k === 'p') togglePanel('pass-panel');
+      if (k === 'm') openWorldMap(); if (k === 'e') togglePanel('materials');
+      if (k === 'a' && !$('#map').classList.contains('hidden')) { e.preventDefault && e.preventDefault(); doTeleport(); }
+      if (k === 'q') Game.switchLayer(Game.player.layer === 'depths' ? 'surface' : 'sky'); if (k === 'z') Game.switchLayer(Game.player.layer === 'sky' ? 'surface' : 'depths');
+    });
+  }
+  function togglePanel(id) { const p = $('#' + id); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) { if (id === 'build') renderBuild(); if (id === 'ally') renderAlliance(); if (id === 'pass-panel') renderPass(); if (id === 'materials') renderMaterials(); } }
+
+  Game.on('ready', () => {
+    $('#hud').classList.remove('hidden');
+    renderTown(); renderInv(); renderHp(); renderQuest(); renderMinimap(); renderLayer(Game.player.layer); renderHotbar();
+  });
+  Game.on('inv', () => { renderInv(); renderExp(); if (!$('#materials').classList.contains('hidden')) renderMaterials(); if (!$('#build').classList.contains('hidden')) renderBuild(); });
+  Game.on('exp', renderExp);
+  Game.on('hotbar', renderHotbar);
+  Game.on('hp', renderHp);
+  Game.on('log', renderLog);
+  Game.on('quest', renderQuest);
+  Game.on('town', renderTown);
+  Game.on('select', renderSelect);
+  Game.on('rivals', () => { if (!$('#ally').classList.contains('hidden')) renderAlliance(); });
+  Game.on('openAlliance', () => { $('#ally').classList.remove('hidden'); renderAlliance(); });
+  Game.on('offline', renderOffline);
+  Game.on('buildMode', t => { $('#build-hint').textContent = t ? 'Placing ' + Game.BUILD_RECIPES[t].name + '. Click to place, Shift-click to place several, right-click or Esc to cancel.' : ''; if (!$('#build').classList.contains('hidden')) renderBuild(); });
+  Game.on('layer', renderLayer);
+  Game.on('tick', () => { renderMinimap(); renderHp(); if (worldMap && !$('#map').classList.contains('hidden')) worldMap.dirty = true; if (Game.ghostStatus && Game.buildMode) $('#build-hint').textContent = Game.ghostStatus.ok ? 'Placing ' + Game.BUILD_RECIPES[Game.buildMode].name + '. Click to place.' : Game.ghostStatus.why; });
+  function renderLayer(layer) { document.querySelectorAll('[data-layer]').forEach(b => b.classList.toggle('active', b.dataset.layer === layer)); }
+
+  window.addEventListener('error', e => { const b = document.querySelector('#auth-err'); if (b) b.textContent = 'Startup error: ' + (e.message || 'script failed to load'); });
+  document.addEventListener('DOMContentLoaded', () => { initAuth(); initHud(); try { Game.startPreview(); } catch (err) { console.error('preview', err); } for (const k in ICON) document.querySelectorAll('[data-icon="' + k + '"]').forEach(e => e.innerHTML = ICON[k]); });
+})();
+
+</script>
+</body>
+</html>

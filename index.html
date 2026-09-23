@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cocodenut AI</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥥</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+<style>
+:root{
+  --bg:#121826;--panel:#182033;--panel2:#1e2840;--line:#2a3550;--text:#dfe5ef;--mut:#8793a8;
+  --lagoon:#3cc4b4;--husk:#e0a458;--err:#ef6b6b;--ok:#58c98b;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--husk);outline-offset:2px}
+.hide{display:none!important}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:500;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;font-size:14px}
+.btn:hover{border-color:#3b4a6b}
+.btn.pri{background:var(--lagoon);border-color:var(--lagoon);color:#06231f;font-weight:600}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--err);border-color:#553040}
+.btn.sm{padding:4px 10px;font-size:13px}
+.btn.ghost{background:none;border-color:transparent;color:var(--mut)}
+.btn.ghost:hover{color:var(--text);background:var(--panel2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:15px;height:15px;flex:none}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;min-width:0}
+input:focus,select:focus,textarea:focus{border-color:var(--lagoon);outline:none}
+label{display:block;font-size:13px;color:var(--mut);margin:0 0 4px}
+.field{margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.2px;white-space:nowrap}
+.brand .mark{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 50% 42%,#f3efe6 0 38%,#6b4a2f 39% 100%);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);flex:none}
+
+#auth{min-height:100%;display:grid;place-items:center;padding:24px}
+.auth-card{width:100%;max-width:400px}
+.auth-card .brand{font-size:20px}
+.auth-card h1{font-size:28px;line-height:1.2;margin:28px 0 6px;font-weight:600}
+.auth-card p{color:var(--mut);margin:0 0 24px}
+.auth-card input{width:100%}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.msg-line{font-size:13px;margin-top:14px;min-height:20px}
+.msg-line.bad{color:var(--err)}.msg-line.good{color:var(--ok)}
+
+#app{display:grid;grid-template-rows:52px 1fr;height:100%}
+.bar{display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);min-width:0}
+.bar .brand{margin-right:10px}
+#nav{display:flex;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+#nav button{display:flex;align-items:center;gap:7px;background:none;border:0;border-radius:8px;padding:7px 11px;cursor:pointer;color:var(--mut);font-weight:500;white-space:nowrap;font-size:14px}
+#nav button svg{width:16px;height:16px;flex:none}
+#nav button:hover{background:var(--panel2);color:var(--text)}
+#nav button[aria-current=page]{background:var(--panel2);color:var(--text);box-shadow:inset 0 -2px 0 var(--lagoon)}
+.bar .spacer{flex:1}
+.engine-pill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:13px;white-space:nowrap}
+.engine-pill i{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.engine-pill.ok i{background:var(--ok)}.engine-pill.warn i{background:var(--husk)}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;color:#0b1220;flex:none}
+.me-chip{background:none;border:0;padding:4px;border-radius:50%;cursor:pointer}
+main{min-width:0;min-height:0;display:flex;flex-direction:column}
+.view{flex:1;overflow:auto;min-height:0}
+.view>.inner{max-width:1200px;margin:0 auto;padding:24px}
+.view h1{font-size:22px;font-weight:600;margin:0 0 6px}
+.view .lede{color:var(--mut);margin:0 0 20px}
+.view.flush{overflow:hidden}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.panel-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-h h3{margin:0;font-size:15px;font-weight:600}
+.panel-b{padding:16px}
+.empty{color:var(--mut);padding:40px 16px;text-align:center}
+
+/* setup / loading screen */
+.setup{position:fixed;inset:0;z-index:90;background:radial-gradient(1200px 600px at 50% -10%,#1c3a44 0,var(--bg) 60%);display:grid;place-items:center;padding:24px;overflow:auto}
+.setup-card{width:100%;max-width:620px}
+.setup-card h1{font-size:30px;font-weight:600;margin:26px 0 6px;letter-spacing:-.3px}
+.setup-card>p{color:#b7c2d4;margin:0 0 20px}
+.models{display:grid;gap:8px;margin-bottom:18px}
+.model{display:flex;align-items:center;gap:14px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;width:100%}
+.model:hover{border-color:#3b4a6b}
+.model[aria-checked=true]{border-color:var(--lagoon);background:#17303a}
+.model .rd{width:16px;height:16px;border-radius:50%;border:2px solid var(--mut);flex:none}
+.model[aria-checked=true] .rd{border-color:var(--lagoon);background:radial-gradient(circle,var(--lagoon) 0 45%,transparent 50%)}
+.model .mt{flex:1;min-width:0}.model .mt b{display:block}.model .mt span{font-size:13px;color:var(--mut)}
+.model .sz{font-size:12px;color:var(--mut);white-space:nowrap;text-align:right}
+.model .sz em{display:block;font-style:normal;color:var(--ok)}
+.models.locked .model{cursor:default;opacity:.55}.models.locked .model[aria-checked=true]{opacity:1}
+.setup-prog{margin:4px 0 18px}
+.pbar{height:10px;border-radius:5px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--lagoon),#7fe0d4);transition:width .35s}
+.prow{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#b7c2d4;margin-top:8px}
+.prow span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tip{font-size:13px;color:var(--mut);margin:14px 0 0;min-height:20px}
+.setup-err{border:1px solid #6b3040;background:#2a1a22;color:#ffd1d1;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px}
+.setup-acts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.setup-acts .count{font-size:13px;color:var(--mut)}
+
+/* popover */
+.pop{position:fixed;z-index:60;background:var(--panel2);border:1px solid #3b4a6b;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);padding:8px;width:340px;max-width:calc(100vw - 16px)}
+.pop .opt{display:flex;gap:12px;padding:10px;border-radius:8px;cursor:pointer;border:1px solid transparent;align-items:flex-start;width:100%;background:none;text-align:left}
+.pop .opt:hover{background:var(--line)}
+.pop .opt[aria-checked=true]{border-color:var(--lagoon)}
+.pop .opt b{display:block;font-size:14px}
+.pop .opt span{display:block;font-size:12.5px;color:var(--mut);line-height:1.45}
+.pop .opt .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;background:var(--mut)}
+.pop .opt[aria-checked=true] .dot{background:var(--lagoon)}
+.pop select{width:100%;margin-top:8px}
+.pop .foot{font-size:12px;color:var(--mut);padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:6px}
+
+/* chat layout */
+.shell{display:grid;grid-template-columns:260px 1fr;height:100%;min-height:0}
+.shell.side-closed{grid-template-columns:0 1fr}
+.shell.preview-open{grid-template-columns:260px minmax(360px,1fr) minmax(420px,1.15fr)}
+.shell.side-closed.preview-open{grid-template-columns:0 minmax(360px,1fr) minmax(420px,1.15fr)}
+.convs{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.convs-h{padding:12px;display:flex;gap:8px}
+.convs-h .btn{flex:1;justify-content:center}
+.convs ul{list-style:none;margin:0;padding:0 8px 12px;overflow:auto;flex:1}
+.convs li{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:#c3cbda}
+.convs li:hover{background:var(--panel2)}
+.convs li[aria-current=true]{background:var(--panel2);color:#fff}
+.convs li .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.convs li .x{visibility:hidden;background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;border-radius:4px}
+.convs li:hover .x{visibility:visible}
+.convs li .x:hover{color:var(--err)}
+.convs .grp{font-size:12px;color:var(--mut);padding:10px 10px 4px}
+.chat{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.chat-top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);min-height:48px}
+.chat-top .ct{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.stream{flex:1;overflow:auto;padding:24px 0 12px}
+.col{max-width:780px;margin:0 auto;padding:0 20px}
+.msg{margin:0 0 22px;display:flex;gap:12px}
+.msg .who{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#0b1220;margin-top:2px}
+.msg.assistant .who{background:radial-gradient(circle at 50% 42%,#f3efe6 0 38%,#6b4a2f 39% 100%)}
+.msg .body{flex:1;min-width:0;overflow-wrap:anywhere}
+.msg.user .body{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;white-space:pre-wrap}
+.md p{margin:0 0 12px}.md p:last-child{margin-bottom:0}
+.md h1,.md h2,.md h3{font-size:17px;margin:18px 0 8px;font-weight:600}
+.md ul,.md ol{margin:0 0 12px;padding-left:22px}
+.md li{margin:3px 0}
+.md a{color:var(--lagoon)}
+.md code{font-family:var(--mono);font-size:13px;background:var(--panel2);padding:1px 5px;border-radius:5px}
+.md pre{position:relative;background:#0d1320;border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto;margin:0 0 12px}
+.md pre code{background:none;padding:0;font-size:13px;line-height:1.55;white-space:pre}
+.md pre .cp{position:absolute;top:6px;right:6px;font-size:12px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--mut);cursor:pointer}
+.md table{border-collapse:collapse;margin:0 0 12px;display:block;overflow-x:auto}
+.md th,.md td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+.md blockquote{margin:0 0 12px;padding-left:12px;border-left:3px solid var(--line);color:var(--mut)}
+.build{display:flex;align-items:center;gap:12px;border:1px solid #2b5560;background:linear-gradient(90deg,#17323a,#1a2438);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.build .ic{width:38px;height:38px;border-radius:10px;background:#20464f;display:grid;place-items:center;flex:none}
+.build .ic svg{width:20px;height:20px;color:var(--lagoon)}
+.build .bt{flex:1;min-width:0}
+.build .bt b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.build .bt span{font-size:13px;color:#a9c7cc}
+.build.live .ic{animation:pulse 1.2s infinite}
+.buildwrap{margin:0 0 12px}
+.buildwrap .build{margin:0}
+.live-code{margin:6px 0 0!important;max-height:210px;overflow:hidden!important;position:relative;font:12px/1.5 var(--mono)!important;background:#0d1320!important;border:1px solid var(--line);border-radius:10px;padding:10px 12px!important;color:#9fb0cc;white-space:pre!important}
+.live-code::before{content:"";position:absolute;left:0;right:0;top:0;height:40px;background:linear-gradient(#0d1320,transparent)}
+.paused{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--husk)}
+@keyframes pulse{50%{opacity:.45}}
+.status{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:8px}
+.status .bar2{height:4px;border-radius:2px;background:var(--line);flex:1;max-width:220px;overflow:hidden}
+.status .bar2 i{display:block;height:100%;background:var(--lagoon);width:0;transition:width .3s}
+.caret{display:inline-block;width:8px;height:16px;background:var(--lagoon);vertical-align:-3px;animation:pulse 1s infinite;border-radius:1px}
+.err-box{border:1px solid #6b3040;background:#2a1a22;color:#ffd1d1;border-radius:10px;padding:10px 14px;font-size:14px}
+.err-box .btn{margin-top:8px}
+
+.composer{padding:10px 0 16px}
+.box{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:10px 10px 8px 14px}
+.box:focus-within{border-color:#3b5d78}
+.box textarea{width:100%;border:0;background:none;resize:none;padding:4px 0;max-height:220px;line-height:1.5;outline:none}
+.box .row{display:flex;align-items:center;gap:8px}
+.box .hint{font-size:12px;color:var(--mut);flex:1}
+.send{width:36px;height:36px;border-radius:10px;border:0;background:var(--lagoon);color:#06231f;display:grid;place-items:center;cursor:pointer}
+.send:disabled{opacity:.4;cursor:not-allowed}
+.send svg{width:18px;height:18px}
+.send.stop{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#20464f;color:#bfe7e2;border-radius:999px;padding:3px 6px 3px 12px;font-size:13px;margin-bottom:8px}
+.chip button{background:none;border:0;color:inherit;cursor:pointer;border-radius:50%;width:20px;height:20px}
+.hello{text-align:center;padding:8vh 0 24px}
+.hello h2{font-size:30px;font-weight:600;margin:14px 0 6px;letter-spacing:-.3px}
+.hello p{color:var(--mut);margin:0}
+.hello .mark{width:52px;height:52px;border-radius:50%;margin:0 auto;background:radial-gradient(circle at 50% 42%,#f3efe6 0 38%,#6b4a2f 39% 100%);box-shadow:inset 0 -5px 0 rgba(0,0,0,.25)}
+.starters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:26px 0 0}
+.starters button{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;color:#c3cbda;font-size:14px;line-height:1.4}
+.starters button:hover{border-color:#3b4a6b;color:var(--text)}
+.starters b{display:block;color:var(--text);font-weight:600;margin-bottom:2px}
+
+/* preview */
+.preview{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
+.pv-h{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line);min-height:48px}
+.pv-h .pt{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px}
+.seg button{background:none;border:0;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;color:var(--mut)}
+.seg button[aria-selected=true]{background:var(--panel2);color:var(--text)}
+.pv-b{flex:1;min-height:0;position:relative;background:#fff}
+.pv-b iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.pv-b pre{position:absolute;inset:0;margin:0;overflow:auto;background:#0d1320;color:#b8c4da;padding:14px;font:12.5px/1.55 var(--mono)}
+
+/* gallery */
+.gtools{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.gtools input{flex:1;max-width:340px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:4/3;background:#fff;overflow:hidden;cursor:pointer}
+.thumb iframe{position:absolute;left:0;top:0;width:400%;height:400%;transform:scale(.25);transform-origin:0 0;border:0;pointer-events:none;background:#fff}
+.thumb .ph{position:absolute;inset:0;display:grid;place-items:center;background:#0d1320;color:var(--mut);font-size:13px}
+.card .ci{padding:12px 14px;display:flex;flex-direction:column;gap:4px;flex:1}
+.card .ci b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .ci .by{font-size:13px;color:var(--mut)}
+.card .ca{display:flex;gap:6px;padding:0 10px 12px;align-items:center}
+.like{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer;color:var(--mut);font-size:13px}
+.like svg{width:14px;height:14px}
+.like[aria-pressed=true]{color:#ff8a9a;border-color:#6b3040}
+.like[aria-pressed=true] svg{fill:currentColor}
+.tag{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--panel2);color:var(--mut);white-space:nowrap}
+.tag.pub{color:var(--lagoon)}
+
+/* modals */
+.modal{position:fixed;inset:0;z-index:70;background:rgba(6,10,18,.72);display:grid;place-items:center;padding:20px}
+.dialog{background:var(--panel);border:1px solid #3b4a6b;border-radius:14px;width:100%;max-width:440px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.dialog h3{margin:0 0 6px;font-size:18px;font-weight:600}
+.dialog p{color:var(--mut);margin:0 0 16px;font-size:14px}
+.dialog input,.dialog textarea,.dialog select{width:100%}
+.dialog .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.viewer{position:fixed;inset:0;z-index:70;background:var(--bg);display:grid;grid-template-rows:auto 1fr}
+.viewer .vh{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.viewer .vh .vt{flex:1;min-width:160px}
+.viewer .vh .vt b{display:block}
+.viewer .vh .vt span{font-size:13px;color:var(--mut)}
+.viewer iframe{width:100%;height:100%;border:0;background:#fff}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.form input,.form textarea,.form select{width:100%}
+.form textarea{min-height:80px;resize:vertical}
+.inline{display:flex;gap:8px;flex-wrap:wrap}
+.note{font-size:13px;color:var(--mut);margin:8px 0 0}
+.toast{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;max-width:380px;box-shadow:0 8px 30px rgba(0,0,0,.35);z-index:100;font-size:14px}
+.toast.bad{border-color:#6b3040;color:#ffd1d1}
+
+@media (max-width:1100px){#nav button span{display:none}}
+@media (max-width:1000px){
+  .shell,.shell.preview-open{grid-template-columns:0 1fr}
+  .shell.side-open-m{grid-template-columns:260px 1fr}
+  .preview{position:fixed;inset:52px 0 0 0;z-index:40;border-left:0}
+  .two{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .starters{grid-template-columns:1fr}
+  .bar .brand span{display:none}
+  .engine-pill span{display:none}
+  .view>.inner{padding:14px}
+  .hello{padding-top:4vh}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div id="auth" class="hide">
+  <div class="auth-card">
+    <div class="brand"><span class="mark"></span>Cocodenut</div>
+    <h1>Ask for anything. Watch it get built.</h1>
+    <p>A free community AI studio. Describe a game, tool or site and get a working version in seconds, then share it with everyone.</p>
+    <div class="field"><label for="aEmail">Email</label><input id="aEmail" type="email" autocomplete="email"></div>
+    <div class="field"><label for="aPw">Password</label><input id="aPw" type="password" autocomplete="current-password" minlength="6"></div>
+    <div class="field"><label for="aUser">Username (new accounts)</label><input id="aUser" maxlength="20" autocomplete="username"></div>
+    <div class="auth-actions">
+      <button class="btn pri" id="aIn">Sign in</button>
+      <button class="btn" id="aUp">Create account</button>
+      <button class="btn" id="aGuest">Continue as guest</button>
+    </div>
+    <div class="msg-line" id="aMsg" role="status"></div>
+  </div>
+</div>
+
+<div id="app" class="hide">
+  <header class="bar">
+    <div class="brand"><span class="mark"></span><span>Cocodenut</span></div>
+    <nav id="nav">
+      <button data-v="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Chat</span></button>
+      <button data-v="community"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg><span>Community</span></button>
+      <button data-v="mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>My creations</span></button>
+      <button data-v="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span>Settings</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <button class="engine-pill" id="enginePill" aria-haspopup="true"><i></i><span id="engineLabel">Cloud AI</span></button>
+    <button class="me-chip" id="meChip" title="Settings"><span class="av" id="meAv"></span></button>
+  </header>
+  <main>
+    <div class="view flush" id="v-chat">
+      <div class="shell" id="shell">
+        <aside class="convs">
+          <div class="convs-h"><button class="btn pri" id="newChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>New chat</button></div>
+          <ul id="convList"></ul>
+        </aside>
+        <section class="chat">
+          <div class="chat-top">
+            <button class="btn sm ghost" id="toggleSide" title="Show or hide chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+            <div class="ct" id="chatTitle">New chat</div>
+            <button class="btn sm ghost hide" id="reopenPreview">Show preview</button>
+          </div>
+          <div class="stream" id="stream"><div class="col" id="msgs"></div></div>
+          <div class="composer"><div class="col">
+            <div id="remixChip" class="chip hide"><span id="remixTxt"></span><button id="remixX" aria-label="Remove">✕</button></div>
+            <div class="box">
+              <textarea id="input" rows="1" placeholder="Describe what you want to build, or ask anything" aria-label="Message"></textarea>
+              <div class="row"><span class="hint" id="hint">Enter to send, Shift+Enter for a new line</span><button class="send" id="sendBtn" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+            </div>
+          </div></div>
+        </section>
+        <section class="preview hide" id="preview">
+          <div class="pv-h">
+            <span class="pt" id="pvTitle">Preview</span>
+            <div class="seg" role="tablist"><button data-pv="run" aria-selected="true">Preview</button><button data-pv="code" aria-selected="false">Code</button></div>
+            <button class="btn sm ghost" id="pvReload" title="Restart" aria-label="Restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+            <button class="btn sm ghost" id="pvFull" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+            <button class="btn sm ghost" id="pvDown" title="Download" aria-label="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+            <button class="btn sm pri" id="pvShare">Share</button>
+            <button class="btn sm ghost" id="pvClose" aria-label="Close preview">✕</button>
+          </div>
+          <div class="pv-b"><iframe id="pvFrame" sandbox="allow-scripts allow-modals allow-forms allow-pointer-lock allow-popups" title="Preview"></iframe><pre id="pvCode" class="hide"></pre></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="view hide" id="v-community"><div class="inner">
+      <h1>Community</h1>
+      <p class="lede">Things people built with Cocodenut. Open one to try it, or remix it into your own version.</p>
+      <div class="gtools"><input id="gSearch" placeholder="Search creations" aria-label="Search creations"><div class="seg" id="gSort"><button data-s="top" aria-selected="true">Most liked</button><button data-s="new" aria-selected="false">Newest</button></div></div>
+      <div class="grid" id="gGrid"></div>
+    </div></div>
+
+    <div class="view hide" id="v-mine"><div class="inner">
+      <h1>My creations</h1>
+      <p class="lede">Everything you've saved. Shared creations appear in Community.</p>
+      <div class="grid" id="mGrid"></div>
+    </div></div>
+
+    <div class="view hide" id="v-settings"><div class="inner">
+      <h1>Settings</h1>
+      <p class="lede">&nbsp;</p>
+      <div class="two">
+        <div class="panel"><div class="panel-h"><h3>Your profile</h3></div><div class="panel-b form">
+          <div class="field"><label for="sUser">Username</label><input id="sUser" maxlength="20"></div>
+          <div class="field"><label for="sName">Display name</label><input id="sName" maxlength="40"></div>
+          <div class="field"><label for="sBio">Bio</label><textarea id="sBio" maxlength="280"></textarea></div>
+          <div class="inline"><button class="btn pri" id="sSave">Save profile</button><button class="btn danger" id="sOut">Sign out</button></div>
+        </div></div>
+        <div class="panel"><div class="panel-h"><h3>AI engine</h3></div><div class="panel-b form">
+          <div class="field"><label for="setEngine">Default engine</label><select id="setEngine"><option value="cloud">Cloud AI (fastest, best quality)</option><option value="local">On-device (free and private, runs on your GPU)</option></select></div>
+          <div class="field"><label for="setModel">On-device model</label><select id="setModel"></select></div>
+          <div class="inline"><button class="btn" id="dlModel">Download this model now</button><button class="btn danger" id="rmModel">Remove downloaded model</button></div>
+          <p class="note" id="modelNote"></p>
+          <p class="note" id="usageNote"></p>
+        </div></div>
+      </div>
+    </div></div>
+  </main>
+</div>
+
+<div class="setup hide" id="setup" role="dialog" aria-labelledby="setupH">
+  <div class="setup-card">
+    <div class="brand"><span class="mark"></span>Cocodenut</div>
+    <h1 id="setupH">Setting up your AI</h1>
+    <p id="setupSub">Pick the model that will run on your device. It downloads once, then it's yours: free, private, unlimited, and it works offline.</p>
+    <div class="models" id="setupModels" role="radiogroup" aria-label="Model"></div>
+    <div class="setup-prog hide" id="setupProg">
+      <div class="pbar"><i id="setupBar"></i></div>
+      <div class="prow"><span id="setupTxt">Preparing…</span><span id="setupPct">0%</span></div>
+      <p class="tip" id="setupTip"></p>
+    </div>
+    <div class="setup-err hide" id="setupErr"></div>
+    <div class="setup-acts"><button class="btn pri" id="setupGo">Download and start</button><span class="count" id="setupCount"></span><div style="flex:1"></div><button class="btn ghost" id="setupSkip">Skip, use Cloud AI</button></div>
+  </div>
+</div>
+
+<div class="pop hide" id="enginePop" role="menu">
+  <button class="opt" role="menuitemradio" data-engine="cloud"><i class="dot"></i><div><b>Cloud AI</b><span>Runs on Cocodenut's server. Fastest and the strongest results. No limits.</span></div></button>
+  <button class="opt" role="menuitemradio" data-engine="local"><i class="dot"></i><div><b>On-device</b><span>An open model runs on your own GPU. Unlimited, private and free. Downloads once, then works offline. Needs a browser with WebGPU.</span><select id="popModel" aria-label="On-device model"></select></div></button>
+  <div class="foot" id="popFoot"></div>
+</div>
+
+<div class="modal hide" id="shareModal" role="dialog" aria-labelledby="shareH">
+  <div class="dialog">
+    <h3 id="shareH">Save this creation</h3>
+    <p>Share it with the community, or keep it private in My creations.</p>
+    <div class="field"><label for="shTitle">Title</label><input id="shTitle" maxlength="80"></div>
+    <div class="field"><label for="shVis">Who can see it</label><select id="shVis"><option value="public">Everyone, in Community</option><option value="private">Only me</option></select></div>
+    <div class="acts"><button class="btn" id="shCancel">Cancel</button><button class="btn pri" id="shGo">Save</button></div>
+  </div>
+</div>
+
+<div class="viewer hide" id="viewer" role="dialog" aria-labelledby="vTitle">
+  <div class="vh">
+    <div class="vt"><b id="vTitle"></b><span id="vBy"></span></div>
+    <button class="like" id="vLike" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span id="vLikes">0</span></button>
+    <button class="btn sm" id="vRemix">Remix</button>
+    <button class="btn sm ghost" id="vDown">Download</button>
+    <button class="btn sm ghost" id="vClose">Close</button>
+  </div>
+  <iframe id="vFrame" sandbox="allow-scripts allow-modals allow-forms allow-pointer-lock allow-popups" title="Creation"></iframe>
+</div>
+
+<script>
+(function(){
+'use strict';
+var SB_URL = 'https://rataaxqkanprzbqhrtyo.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdGFheHFrYW5wcnpicWhydHlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMTMxMDUsImV4cCI6MjEwNTY4OTEwNX0.iHaZCzGCLryWXYFr5hkkNTHdr4dgSKXlCs8Qr4ZMDTk';
+var WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm';
+var LOCAL_MODELS = [
+  ['Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC', 'Qwen Coder 3B', 'Recommended. Strong at building things and runs on most laptops.', 2.5],
+  ['Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC', 'Qwen Coder 7B', 'Best quality on your device. Needs a powerful graphics card.', 5.1],
+  ['Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC', 'Qwen Coder 1.5B', 'Lighter and faster. Good for simple builds.', 1.6],
+  ['Llama-3.2-3B-Instruct-q4f16_1-MLC', 'Llama 3.2 3B', 'All-round chat, writing and explaining.', 2.3],
+  ['Llama-3.2-1B-Instruct-q4f16_1-MLC', 'Llama 3.2 1B', 'Tiny. Works on almost any device, simplest answers.', 0.9]
+];
+var LOCAL_SYSTEM = 'You are Coco, the AI assistant in Cocodenut, a free community studio. Be concise and helpful. When the user asks you to make, build or create something that runs in a browser, reply with one short sentence, then ONE complete self-contained HTML document (inline CSS and JavaScript, no external images) in a single ```html code block, then one short tip. When asked for changes, return the full updated HTML again. For other questions answer normally in Markdown.';
+var STARTERS = [
+  ['Snake game', 'Make a snake game with smooth controls, a speed-up as you grow, and a saved high score.'],
+  ['Focus timer', 'Build a pomodoro focus timer with a progress ring, session history and a calm colour theme.'],
+  ['Particle galaxy', 'Create an interactive particle galaxy I can drag to rotate and scroll to zoom.'],
+  ['Budget tracker', 'Make a monthly budget tracker where I add expenses by category and see a chart of spending.'],
+  ['Explain it simply', 'Explain how a neural network learns, in plain language with a small example.'],
+  ['Landing page', 'Design a landing page for a coffee roaster called Cocodenut Roasters, with a menu and opening hours.']
+];
+
+var $ = function(id){ return document.getElementById(id); };
+var sb = null, me = null, profile = null, profiles = {};
+var convs = [], cur = null, msgs = [];
+var generating = false, abortCtl = null, engine = localStorage.getItem('coco:engine') || 'cloud';
+var localModel = localStorage.getItem('coco:model') || LOCAL_MODELS[0][0];
+var webllm = null, mlc = null, mlcModel = null, cloudState = 'unknown', remaining = null;
+var preview = null, pendingRemix = null, view = 'chat';
+
+/* ---------- utils ---------- */
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function ago(t){
+  var s = Math.max(1, (Date.now() - new Date(t).getTime()) / 1000);
+  if(s < 60) return 'just now'; if(s < 3600) return Math.floor(s/60)+'m ago'; if(s < 86400) return Math.floor(s/3600)+'h ago';
+  if(s < 604800) return Math.floor(s/86400)+'d ago'; return new Date(t).toLocaleDateString();
+}
+function hue(p){ return 'hsl('+((p && p.avatar_hue) || 200)+' 65% 68%)'; }
+function initials(p){ var n = (p && (p.display_name || p.username)) || '?'; return n.slice(0,2).toUpperCase(); }
+function nameOf(uid){ var p = profiles[uid]; return p ? (p.display_name || p.username) : 'someone'; }
+var toastT;
+function toast(msg, bad){
+  var t = document.querySelector('.toast'); if(t) t.remove();
+  t = document.createElement('div'); t.className = 'toast'+(bad?' bad':''); t.setAttribute('role','status'); t.textContent = msg;
+  document.body.appendChild(t); clearTimeout(toastT); toastT = setTimeout(function(){ t.remove(); }, 4200);
+}
+function friendly(e){
+  var m = (e && e.message) || String(e);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Can't reach the server. Open this file directly in your browser rather than a preview, and check that nothing is blocking supabase.co.";
+  if(/Anonymous sign-ins are disabled/i.test(m)) return 'Guest access is turned off. Create an account instead.';
+  if(/Email not confirmed/i.test(m)) return 'Confirm your email first, using the link we sent you.';
+  if(/Invalid login credentials/i.test(m)) return 'That email and password do not match an account.';
+  if(/User already registered/i.test(m)) return 'An account with that email already exists. Sign in instead.';
+  if(/duplicate key.*username/i.test(m)) return 'That username is taken.';
+  if(/row-level security/i.test(m)) return "You don't have permission to do that.";
+  return m;
+}
+async function act(fn){ try{ return await fn(); }catch(e){ console.error(e); toast(friendly(e), true); } }
+function chk(r){ if(r.error) throw r.error; return r.data; }
+function download(name, html){
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type:'text/html' }));
+  a.download = (name || 'creation').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() + '.html';
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function titleFromHtml(html, fallback){
+  var m = /<title[^>]*>([^<]{1,80})<\/title>/i.exec(html || ''); if(m && m[1].trim()) return m[1].trim();
+  m = /<h1[^>]*>([^<]{1,80})<\/h1>/i.exec(html || ''); if(m && m[1].trim()) return m[1].trim();
+  return fallback || 'Untitled build';
+}
+
+/* ---------- boot & auth ---------- */
+async function boot(){
+  if(!window.supabase || !window.supabase.createClient){ showAuth(); authMsg('A required library could not load. Check your connection and reload.', true); return; }
+  sb = window.supabase.createClient(SB_URL, SB_KEY, { auth:{ persistSession:true, autoRefreshToken:true } });
+  sb.auth.onAuthStateChange(function(evt, session){
+    var u = session ? session.user : null;
+    if((u && u.id) !== (me && me.id)){ me = u; setTimeout(enter, 0); }
+  });
+  var s = await sb.auth.getSession();
+  me = s.data.session ? s.data.session.user : null;
+  enter();
+}
+var entering = false;
+async function enter(){
+  if(entering) return; entering = true;
+  try{
+    profile = null; convs = []; cur = null; msgs = [];
+    if(!me){ showAuth(); return; }
+    for(var i=0;i<6 && !profile;i++){
+      profile = chk(await sb.from('profiles').select('*').eq('id', me.id).maybeSingle());
+      if(!profile) await new Promise(function(r){ setTimeout(r, 300); });
+    }
+    if(!profile) throw new Error('Your profile could not be created. Reload to try again.');
+    profiles[me.id] = profile;
+    $('auth').classList.add('hide'); $('app').classList.remove('hide');
+    paintMe(); paintEngine();
+    await loadConvs();
+    maybeSetup();
+    renderMsgs();
+    go('chat');
+  }catch(e){ showAuth(); authMsg(friendly(e), true); }
+  finally{ entering = false; }
+}
+function showAuth(){ $('app').classList.add('hide'); $('auth').classList.remove('hide'); }
+function authMsg(t, bad){ var m = $('aMsg'); m.textContent = t; m.className = 'msg-line '+(bad?'bad':'good'); }
+function paintMe(){
+  var a = $('meAv'); a.style.background = hue(profile); a.textContent = initials(profile);
+  $('meChip').title = (profile.display_name || profile.username) + (me.is_anonymous ? ' (guest)' : '');
+}
+$('aIn').onclick = async function(){
+  authMsg('Signing in…');
+  try{ var r = await sb.auth.signInWithPassword({ email:$('aEmail').value.trim(), password:$('aPw').value }); if(r.error) authMsg(friendly(r.error), true); }
+  catch(e){ authMsg(friendly(e), true); }
+};
+$('aUp').onclick = async function(){
+  var u = $('aUser').value.trim();
+  if(u && !/^[A-Za-z0-9_]{3,20}$/.test(u)){ authMsg('Usernames are 3 to 20 letters, numbers or underscores.', true); return; }
+  if($('aPw').value.length < 6){ authMsg('Use a password of at least 6 characters.', true); return; }
+  authMsg('Creating your account…');
+  try{
+    var r = await sb.auth.signUp({ email:$('aEmail').value.trim(), password:$('aPw').value, options:{ data:{ username:u } } });
+    if(r.error) authMsg(friendly(r.error), true);
+    else if(!r.data.session) authMsg('Account created. Confirm your email with the link we sent, then sign in.');
+  }catch(e){ authMsg(friendly(e), true); }
+};
+$('aGuest').onclick = async function(){
+  authMsg('Starting a guest session…');
+  try{ var r = await sb.auth.signInAnonymously({ options:{ data:{ username:'guest' } } }); if(r.error) authMsg(friendly(r.error), true); }
+  catch(e){ authMsg(friendly(e), true); }
+};
+$('aPw').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('aIn').click(); });
+
+/* ---------- navigation ---------- */
+var VIEWS = ['chat','community','mine','settings'];
+function go(v){
+  view = v;
+  document.querySelectorAll('#nav button').forEach(function(b){ if(b.dataset.v === v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  VIEWS.forEach(function(k){ $('v-'+k).classList.toggle('hide', k !== v); });
+  if(v === 'community') loadGallery();
+  if(v === 'mine') loadMine();
+  if(v === 'settings') renderSettings();
+  if(v === 'chat') setTimeout(function(){ $('input').focus(); }, 0);
+}
+document.querySelectorAll('#nav button').forEach(function(b){ b.onclick = function(){ go(b.dataset.v); }; });
+$('meChip').onclick = function(){ go('settings'); };
+
+/* ---------- engine selection ---------- */
+function modelName(id){ var m = LOCAL_MODELS.find(function(x){ return x[0] === id; }); return m ? m[1] : id; }
+function paintEngine(){
+  var pill = $('enginePill');
+  $('engineLabel').textContent = engine === 'cloud' ? 'Cloud AI' : 'On-device: ' + modelName(localModel);
+  pill.classList.toggle('ok', engine === 'local' || cloudState === 'ok' || cloudState === 'unknown');
+  pill.classList.toggle('warn', engine === 'cloud' && cloudState === 'unavailable');
+  document.querySelectorAll('#enginePop .opt').forEach(function(o){ o.setAttribute('aria-checked', o.dataset.engine === engine); });
+  var opts = LOCAL_MODELS.map(function(m){ return '<option value="'+m[0]+'"'+(m[0] === localModel ? ' selected' : '')+'>'+esc(m[1]+' ('+m[3]+' GB), '+m[2])+'</option>'; }).join('');
+  $('popModel').innerHTML = opts; $('setModel').innerHTML = opts;
+  $('popFoot').textContent = cloudState === 'unavailable' ? 'Cloud AI is not switched on for this server yet, so On-device is the way to go for now.' : (navigator.gpu ? 'Your browser supports WebGPU, so On-device will work here.' : 'This browser has no WebGPU. On-device needs a recent Chrome, Edge or Safari.');
+}
+function setEngine(e){ engine = e; localStorage.setItem('coco:engine', e); paintEngine(); }
+function setModel(m){ if(m !== localModel){ localModel = m; localStorage.setItem('coco:model', m); } paintEngine(); }
+$('enginePill').onclick = function(e){
+  e.stopPropagation();
+  var pop = $('enginePop'), r = this.getBoundingClientRect();
+  if(!pop.classList.contains('hide')){ pop.classList.add('hide'); return; }
+  paintEngine(); pop.classList.remove('hide');
+  pop.style.top = (r.bottom + 8) + 'px'; pop.style.left = Math.max(8, Math.min(window.innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth)) + 'px';
+};
+document.querySelectorAll('#enginePop .opt').forEach(function(o){ o.onclick = function(e){ if(e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return; setEngine(o.dataset.engine); $('enginePop').classList.add('hide'); }; });
+$('popModel').onclick = function(e){ e.stopPropagation(); };
+$('popModel').onchange = function(){ setModel(this.value); setEngine('local'); };
+document.addEventListener('click', function(e){ if(!e.target.closest('#enginePop') && !e.target.closest('#enginePill')) $('enginePop').classList.add('hide'); });
+
+/* ---------- conversations ---------- */
+async function loadConvs(){
+  convs = chk(await sb.from('conversations').select('*').eq('user_id', me.id).order('updated_at', { ascending:false }).limit(200)) || [];
+  renderConvs();
+}
+function renderConvs(){
+  if(!convs.length){ $('convList').innerHTML = '<li class="grp" style="cursor:default">Your chats will appear here.</li>'; return; }
+  var now = Date.now(), groups = [['Today',[]],['Previous 7 days',[]],['Older',[]]];
+  convs.forEach(function(c){ var d = (now - new Date(c.updated_at).getTime()) / 864e5; groups[d < 1 ? 0 : d < 7 ? 1 : 2][1].push(c); });
+  $('convList').innerHTML = groups.filter(function(g){ return g[1].length; }).map(function(g){
+    return '<div class="grp">'+g[0]+'</div>' + g[1].map(function(c){
+      return '<li data-c="'+c.id+'" aria-current="'+(!!cur && cur.id === c.id)+'" tabindex="0"><span class="t">'+esc(c.title)+'</span><button class="x" data-del="'+c.id+'" aria-label="Delete chat">✕</button></li>';
+    }).join('');
+  }).join('');
+  $('convList').querySelectorAll('li[data-c]').forEach(function(li){
+    li.onclick = function(e){ if(e.target.closest('.x')) return; openConv(li.dataset.c); };
+    li.onkeydown = function(e){ if(e.key === 'Enter') openConv(li.dataset.c); };
+  });
+  $('convList').querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ act(async function(){
+    if(!confirm('Delete this chat?')) return;
+    chk(await sb.from('conversations').delete().eq('id', b.dataset.del));
+    convs = convs.filter(function(c){ return c.id !== b.dataset.del; });
+    if(cur && cur.id === b.dataset.del) newChat(); else renderConvs();
+  }); }; });
+}
+async function openConv(id){
+  if(generating) stopGen();
+  var c = convs.find(function(x){ return x.id === id; }); if(!c) return;
+  cur = c; $('chatTitle').textContent = c.title;
+  msgs = [];
+  renderConvs(); renderMsgs();
+  await act(async function(){
+    var rows = chk(await sb.from('messages').select('id,role,content,engine,created_at').eq('conversation_id', id).order('id')) || [];
+    if(!cur || cur.id !== id) return;
+    msgs = rows.map(function(r){ return { id:r.id, rowId:r.id, role:r.role, content:r.content, engine:r.engine }; }); renderMsgs(); scrollDown(true);
+    var last = lastBuild(); if(last) setPreview(last.html, last.title, last.prompt, false);
+  });
+  if(window.innerWidth <= 1000) $('shell').classList.remove('side-open-m');
+}
+function newChat(){
+  if(generating) stopGen();
+  cur = null; msgs = []; $('chatTitle').textContent = 'New chat';
+  closePreview(); renderConvs(); renderMsgs(); $('input').focus();
+}
+$('newChat').onclick = newChat;
+$('toggleSide').onclick = function(){
+  if(window.innerWidth <= 1000) $('shell').classList.toggle('side-open-m');
+  else $('shell').classList.toggle('side-closed');
+};
+
+/* ---------- rendering ---------- */
+var BUILD_RE = /```html[^\n]*\n([\s\S]*?)(```|$)/gi;
+function splitBuilds(text){
+  var builds = [], out = text.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').replace(BUILD_RE, function(m, code, close){
+    builds.push({ html:code, done: close === '```' }); return '\n\n@@BUILD' + (builds.length - 1) + '@@\n\n';
+  });
+  return { text:out, builds:builds };
+}
+if(window.DOMPurify) DOMPurify.addHook('afterSanitizeAttributes', function(n){ if(n.tagName === 'A'){ n.setAttribute('target','_blank'); n.setAttribute('rel','noopener noreferrer'); } });
+function mdToHtml(src){
+  if(!window.marked || !window.DOMPurify) return '<p>'+esc(src).replace(/\n/g,'<br>')+'</p>';
+  return DOMPurify.sanitize(marked.parse(src, { gfm:true, breaks:false }));
+}
+function buildCard(b, mi, bi, live){
+  var lines = b.html.split('\n').length, title = titleFromHtml(b.html, live ? 'Building…' : 'Untitled build');
+  if(live && !b.done) return '<div class="buildwrap">' + buildCardInner(b, mi, bi, live, lines, title) + '<pre class="live-code">' + esc(b.html.split('\n').slice(-10).join('\n')) + '</pre></div>';
+  return buildCardInner(b, mi, bi, live, lines, title);
+}
+function buildCardInner(b, mi, bi, live, lines, title){
+  return '<div class="build'+(live && !b.done ? ' live' : '')+'"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg></div><div class="bt"><b>'+esc(title)+'</b><span>'+(b.done ? lines+' lines, ready to run' : (live ? 'Writing code, '+lines+' lines so far' : 'Unfinished, '+lines+' lines. Press Continue to finish it.'))+'</span></div>'+
+    (b.done ? '<button class="btn sm" data-open="'+mi+':'+bi+'">Open</button><button class="btn sm ghost" data-dl="'+mi+':'+bi+'">Download</button>' : '')+'</div>';
+}
+function renderAssistant(text, mi, live){
+  var sp = splitBuilds(text);
+  var html = mdToHtml(sp.text);
+  html = html.replace(/<p>@@BUILD(\d+)@@<\/p>|@@BUILD(\d+)@@/g, function(m, a, b){ var i = +(a || b); return buildCard(sp.builds[i], mi, i, live); });
+  return html;
+}
+function userText(content){
+  content = content.replace(/\n\nHere is the current version of "([^"\n]{0,90})" to start from:\n\n```html[\s\S]*?(```|$)/, '\n\n[Remixing: $1]');
+  return content.replace(/```html[^\n]*\n[\s\S]*?(```|$)/gi, function(m){ return '\n[Attached: ' + titleFromHtml(m.replace(/```html[^\n]*\n|```$/g, ''), 'a creation') + ']'; }).trim();
+}
+function msgHtml(m, i, live){
+  if(m.role === 'user') return '<div class="msg user"><div class="who" style="background:'+hue(profile)+'">'+esc(initials(profile))+'</div><div class="body">'+esc(userText(m.content))+'</div></div>';
+  var inner;
+  if(m.error) inner = '<div class="err-box">'+esc(m.error)+(m.errorAction ? '<br><button class="btn sm" data-fix="'+m.errorAction+'">'+(m.errorAction === 'local' ? 'Switch to On-device AI' : 'Try again')+'</button>' : '')+'</div>';
+  else if(live && !m.content) inner = m.status ? '<div class="status"><span>'+esc(m.status)+'</span>'+(m.progress != null ? '<span class="bar2"><i style="width:'+Math.round(m.progress*100)+'%"></i></span>' : '')+'</div>' : '<span class="caret"></span>';
+  else inner = '<div class="md">'+renderAssistant(m.content, i, live)+(live ? '<span class="caret"></span>' : '')+'</div>' +
+    (!live && i === msgs.length - 1 && (m.paused || hasOpenBuild(m.content)) ? '<div class="paused"><span>Paused</span><button class="btn sm pri" data-cont="1">Continue</button></div>' : '');
+  return '<div class="msg assistant" data-i="'+i+'"><div class="who" aria-hidden="true"></div><div class="body">'+inner+'</div></div>';
+}
+function renderMsgs(){
+  var box = $('msgs');
+  if(!msgs.length){
+    box.innerHTML = '<div class="hello"><div class="mark"></div><h2>What should we make?</h2><p>Describe a game, tool, page or idea. You get a working version you can run, change and share.</p>' +
+      '<div class="starters">'+STARTERS.map(function(s, i){ return '<button data-st="'+i+'"><b>'+esc(s[0])+'</b>'+esc(s[1])+'</button>'; }).join('')+'</div></div>';
+    box.querySelectorAll('[data-st]').forEach(function(b){ b.onclick = function(){ $('input').value = STARTERS[+b.dataset.st][1]; autosize(); send(); }; });
+    return;
+  }
+  box.innerHTML = msgs.map(function(m, i){ return msgHtml(m, i, generating && i === msgs.length - 1); }).join('');
+  decorate(box);
+}
+function renderLast(){
+  var i = msgs.length - 1, el = $('msgs').querySelector('.msg[data-i="'+i+'"]');
+  if(!el){ renderMsgs(); return; }
+  var tmp = document.createElement('div'); tmp.innerHTML = msgHtml(msgs[i], i, generating);
+  el.replaceWith(tmp.firstChild); decorate($('msgs').lastElementChild);
+}
+function decorate(root){
+  root.querySelectorAll('.md pre').forEach(function(pre){
+    if(pre.querySelector('.cp') || pre.classList.contains('live-code')) return;
+    var b = document.createElement('button'); b.className = 'cp'; b.textContent = 'Copy';
+    b.onclick = function(){ navigator.clipboard.writeText(pre.innerText.replace(/Copy$/, '')).then(function(){ b.textContent = 'Copied'; setTimeout(function(){ b.textContent = 'Copy'; }, 1200); }); };
+    pre.appendChild(b);
+  });
+  root.querySelectorAll('[data-open]').forEach(function(b){ b.onclick = function(){ var p = b.dataset.open.split(':'), bl = getBuild(+p[0], +p[1]); if(bl) setPreview(bl.html, titleFromHtml(bl.html), promptFor(+p[0]), true); }; });
+  root.querySelectorAll('[data-dl]').forEach(function(b){ b.onclick = function(){ var p = b.dataset.dl.split(':'), bl = getBuild(+p[0], +p[1]); if(bl) download(titleFromHtml(bl.html), bl.html); }; });
+  root.querySelectorAll('[data-cont]').forEach(function(b){ b.onclick = continueGen; });
+  root.querySelectorAll('[data-fix]').forEach(function(b){ b.onclick = function(){ if(b.dataset.fix === 'local') setEngine('local'); retry(); }; });
+}
+function hasOpenBuild(t){ var b = splitBuilds(t || '').builds; return b.length > 0 && !b[b.length - 1].done; }
+function getBuild(mi, bi){ var m = msgs[mi]; if(!m) return null; var b = splitBuilds(m.content).builds[bi]; return b && b.done ? b : null; }
+function promptFor(mi){ for(var i = mi; i >= 0; i--) if(msgs[i].role === 'user') return userText(msgs[i].content).slice(0, 2000); return ''; }
+function lastBuild(){
+  for(var i = msgs.length - 1; i >= 0; i--){
+    if(msgs[i].role !== 'assistant') continue;
+    var bs = splitBuilds(msgs[i].content).builds.filter(function(b){ return b.done; });
+    if(bs.length){ var h = bs[bs.length - 1].html; return { html:h, title:titleFromHtml(h), prompt:promptFor(i) }; }
+  }
+  return null;
+}
+function scrollDown(force){
+  var s = $('stream');
+  if(force || s.scrollHeight - s.scrollTop - s.clientHeight < 160) s.scrollTop = s.scrollHeight;
+}
+
+/* ---------- composer ---------- */
+function autosize(){ var t = $('input'); t.style.height = 'auto'; t.style.height = Math.min(220, t.scrollHeight) + 'px'; }
+$('input').addEventListener('input', autosize);
+$('input').addEventListener('keydown', function(e){ if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); } });
+$('sendBtn').onclick = function(){ if(generating) stopGen(); else send(); };
+function setGenerating(on){
+  generating = on;
+  var b = $('sendBtn'); b.classList.toggle('stop', on);
+  b.innerHTML = on ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  b.setAttribute('aria-label', on ? 'Pause' : 'Send'); b.title = on ? 'Pause (Esc)' : 'Send';
+  $('hint').textContent = on ? 'Writing… press pause or Esc to pause it' : 'Enter to send, Shift+Enter for a new line';
+}
+$('remixX').onclick = function(){ pendingRemix = null; $('remixChip').classList.add('hide'); };
+
+async function send(){
+  if(generating) return;
+  var text = $('input').value.trim();
+  if(!text && !pendingRemix) return;
+  if(!text) text = 'Improve this and make it more polished.';
+  var content = text;
+  var remix = pendingRemix;
+  if(remix) content = text + '\n\nHere is the current version of "' + remix.title + '" to start from:\n\n```html\n' + remix.html + '\n```';
+  $('input').value = ''; autosize(); $('input').placeholder = 'Describe what you want to build, or ask anything';
+  pendingRemix = null; $('remixChip').classList.add('hide');
+  var ok = await act(async function(){
+    if(!cur){
+      cur = chk(await sb.from('conversations').insert({ title: text.slice(0, 80) }).select().single());
+      convs.unshift(cur); $('chatTitle').textContent = cur.title; renderConvs();
+    }
+    return true;
+  });
+  if(!ok) return;
+  msgs.push({ role:'user', content:content });
+  sb.from('messages').insert({ conversation_id:cur.id, role:'user', content:content }).then(function(r){ if(r.error) toast(friendly(r.error), true); });
+  if(remix) setPreview(remix.html, remix.title, text, false, remix.id);
+  await respond();
+}
+function retry(){
+  if(generating) return;
+  if(msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop();
+  respond();
+}
+async function respond(){
+  var history = msgs.filter(function(m){ return !m.error; }).map(function(m){ return { role:m.role, content:m.content }; });
+  var am = { role:'assistant', content:'' };
+  msgs.push(am);
+  await runGen(am, history, false);
+}
+async function continueGen(){
+  if(generating) return;
+  var am = msgs[msgs.length - 1];
+  if(!am || am.role !== 'assistant' || !am.content) return;
+  am.paused = false;
+  var history = msgs.slice(0, -1).filter(function(m){ return !m.error; }).map(function(m){ return { role:m.role, content:m.content }; });
+  history.push({ role:'assistant', content:am.content });
+  await runGen(am, history, true);
+}
+async function runGen(am, history, cont){
+  var convId = cur.id;
+  setGenerating(true); renderMsgs(); scrollDown(true);
+  abortCtl = new AbortController();
+  var signal = abortCtl.signal, last = 0, usedEngine = engine;
+  var onToken = function(t){
+    am.content += t; am.status = null;
+    var now = performance.now();
+    if(now - last > 50){ last = now; renderLast(); scrollDown(); liveBuild(am.content); }
+  };
+  var onStatus = function(s, p){ am.status = s; am.progress = p; renderLast(); };
+  try{
+    if(engine === 'cloud') await genCloud(history, onToken, onStatus, signal, cont);
+    else await genLocal(history, onToken, onStatus, signal, cont);
+  }catch(e){
+    if(e.name !== 'AbortError' && !signal.aborted){
+      if(am.content){ am.content += '\n\n_(Stopped early: ' + (e.userMessage || friendly(e)) + ')_'; }
+      else { am.error = e.userMessage || friendly(e); am.errorAction = e.action || 'retry'; }
+    }
+  }
+  if(signal.aborted && am.content) am.paused = true;
+  setGenerating(false); abortCtl = null; am.status = null;
+  renderMsgs(); scrollDown();
+  if(am.content && !am.error && cur && cur.id === convId){
+    saveAssistant(am, convId, usedEngine);
+    sb.from('conversations').update({ updated_at:new Date().toISOString() }).eq('id', convId).then(function(){});
+    var c = convs.find(function(x){ return x.id === convId; }); if(c){ c.updated_at = new Date().toISOString(); convs.sort(function(a,b){ return a.updated_at < b.updated_at ? 1 : -1; }); renderConvs(); }
+    var bs = splitBuilds(am.content).builds.filter(function(b){ return b.done; });
+    if(bs.length){ var h = bs[bs.length - 1].html; setPreview(h, titleFromHtml(h), promptFor(msgs.length - 1), true, preview && preview.remixOf); pvTab('run'); }
+    else if(liveOn){ pvTab('code'); $('pvTitle').textContent = am.paused ? 'Paused, press Continue to finish' : 'Unfinished build'; }
+  }
+  liveOn = false;
+}
+function saveAssistant(am, convId, usedEngine){
+  var eng = usedEngine === 'cloud' ? 'cloud' : localModel;
+  var run = async function(){
+    if(am.rowId){ var u = await sb.from('messages').update({ content:am.content, engine:eng }).eq('id', am.rowId); if(u.error) console.warn(u.error); return; }
+    var r = await sb.from('messages').insert({ conversation_id:convId, role:'assistant', content:am.content, engine:eng }).select('id').single();
+    if(r.error) console.warn(r.error); else am.rowId = r.data.id;
+  };
+  am.saving = (am.saving || Promise.resolve()).then(run, run);
+}
+var liveOn = false, liveT = 0;
+function liveBuild(text){
+  var bs = splitBuilds(text).builds, b = bs[bs.length - 1];
+  if(!b || b.done) return;
+  var now = performance.now(); if(now - liveT < 200) return; liveT = now;
+  if(!liveOn){
+    liveOn = true;
+    preview = { html:'', title:'Writing code…', prompt:'', remixOf: preview && preview.remixOf };
+    $('pvFrame').srcdoc = ''; pvTab('code'); openPreview();
+  }
+  $('pvTitle').textContent = 'Writing: ' + titleFromHtml(b.html, 'new build') + ' (' + b.html.split('\n').length + ' lines)';
+  var pre = $('pvCode'); pre.textContent = b.html; pre.scrollTop = pre.scrollHeight;
+}
+function pvTab(t){
+  document.querySelectorAll('[data-pv]').forEach(function(x){ x.setAttribute('aria-selected', x.dataset.pv === t); });
+  $('pvFrame').classList.toggle('hide', t !== 'run'); $('pvCode').classList.toggle('hide', t !== 'code');
+}
+function stopGen(){ if(abortCtl) abortCtl.abort(); if(mlc){ try{ mlc.interruptGenerate(); }catch(e){} } }
+
+function err(msg, action){ var e = new Error(msg); e.userMessage = msg; e.action = action; return e; }
+async function genCloud(history, onToken, onStatus, signal, cont){
+  var s = await sb.auth.getSession(); var token = s.data.session && s.data.session.access_token;
+  if(!token) throw err('Your session expired. Sign in again.', 'retry');
+  var res;
+  try{
+    res = await fetch(SB_URL + '/functions/v1/chat', { method:'POST', signal:signal, headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token, apikey:SB_KEY }, body:JSON.stringify({ messages:history, continue:!!cont }) });
+  }catch(e){ if(e.name === 'AbortError') throw e; throw err("Can't reach Cloud AI. Check your connection, or switch to On-device.", 'local'); }
+  if(!res.ok){
+    var j = {}; try{ j = await res.json(); }catch(e){}
+    if(j.error === 'not_configured'){ cloudState = 'unavailable'; remaining = null; paintEngine(); throw err('Cloud AI is not switched on for this server yet. On-device AI runs free on your own computer instead.', 'local'); }
+    if(j.error === 'limit'){ remaining = 0; paintEngine(); throw err(j.message, 'local'); }
+    if(res.status === 404) { cloudState = 'unavailable'; paintEngine(); throw err('Cloud AI is not deployed on this server. Use On-device AI instead.', 'local'); }
+    throw err(j.message || ('Cloud AI returned an error (' + res.status + ').'), 'retry');
+  }
+  cloudState = 'ok';
+  paintEngine();
+  var reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  while(true){ var r = await reader.read(); if(r.done) break; onToken(r.value); }
+}
+async function genLocal(history, onToken, onStatus, signal, cont){
+  if(!navigator.gpu) throw err('On-device AI needs WebGPU, which this browser does not have. Try a recent Chrome or Edge on a computer, or use Cloud AI.', null);
+  if(!webllm){
+    onStatus('Loading the on-device engine…');
+    try{ webllm = await import(WEBLLM_URL); }catch(e){ throw err('Could not load the on-device engine. Check your connection and try again.', 'retry'); }
+  }
+  if(!mlc || mlcModel !== localModel){
+    var cached = false; try{ cached = await webllm.hasModelInCache(localModel); }catch(e){}
+    onStatus(cached ? 'Starting ' + modelName(localModel) + '…' : 'Downloading ' + modelName(localModel) + '. This happens once, then it works offline.', 0);
+    try{
+      if(mlc){ try{ await mlc.unload(); }catch(e){} }
+      mlc = await webllm.CreateMLCEngine(localModel, { initProgressCallback:function(p){ if(signal.aborted) return; onStatus((cached ? 'Starting ' : 'Downloading ') + modelName(localModel) + ', ' + Math.round((p.progress || 0) * 100) + '%', p.progress || 0); } });
+      mlcModel = localModel;
+    }catch(e){ mlc = null; mlcModel = null; throw err('The model could not start on this device: ' + (e.message || e) + '. Try a smaller model in the engine menu.', null); }
+  }
+  if(signal.aborted){ var ab = new Error('aborted'); ab.name = 'AbortError'; throw ab; }
+  onStatus('Thinking…');
+  var trimmed = history.slice(-10).map(function(m){ return { role:m.role, content:m.content.slice(-12000) }; });
+  if(cont) trimmed.push({ role:'user', content:'Continue exactly where you stopped, starting from the very next character. Do not repeat anything you already wrote and do not add any introduction.' });
+  var it = await mlc.chat.completions.create({ messages:[{ role:'system', content:LOCAL_SYSTEM }].concat(trimmed), stream:true, temperature:0.6, max_tokens:4096 });
+  for await (var ch of it){
+    if(signal.aborted){ try{ mlc.interruptGenerate(); }catch(e){} break; }
+    var d = ch.choices && ch.choices[0] && ch.choices[0].delta && ch.choices[0].delta.content;
+    if(d) onToken(d);
+  }
+}
+
+/* ---------- preview ---------- */
+function setPreview(html, title, prompt, open, remixOf){
+  preview = { html:html, title:title || 'Untitled build', prompt:prompt || '', remixOf:remixOf || null };
+  $('pvTitle').textContent = preview.title; $('pvCode').textContent = html; $('pvFrame').srcdoc = html;
+  if(open) openPreview(); else if($('preview').classList.contains('hide')) $('reopenPreview').classList.remove('hide');
+}
+function openPreview(){ if(!preview) return; $('preview').classList.remove('hide'); $('shell').classList.add('preview-open'); $('reopenPreview').classList.add('hide'); }
+function closePreview(){ $('preview').classList.add('hide'); $('shell').classList.remove('preview-open'); $('reopenPreview').classList.toggle('hide', !preview || !msgs.length); }
+$('pvClose').onclick = closePreview;
+$('reopenPreview').onclick = openPreview;
+$('pvReload').onclick = function(){ if(preview){ $('pvFrame').srcdoc = ''; setTimeout(function(){ $('pvFrame').srcdoc = preview.html; }, 30); } };
+$('pvDown').onclick = function(){ if(preview) download(preview.title, preview.html); };
+$('pvFull').onclick = function(){ if(preview) openViewer({ title:preview.title, html:preview.html, user_id:me.id, own:true }); };
+document.querySelectorAll('[data-pv]').forEach(function(b){ b.onclick = function(){ pvTab(b.dataset.pv); }; });
+$('pvShare').onclick = function(){
+  if(!preview) return;
+  $('shTitle').value = preview.title.slice(0, 80); $('shVis').value = me.is_anonymous ? 'private' : 'public';
+  $('shareModal').classList.remove('hide'); $('shTitle').focus();
+};
+$('shCancel').onclick = function(){ $('shareModal').classList.add('hide'); };
+$('shGo').onclick = function(){ act(async function(){
+  var t = $('shTitle').value.trim(); if(!t) throw new Error('Give it a title.');
+  var pub = $('shVis').value === 'public';
+  chk(await sb.from('creations').insert({ title:t, prompt:preview.prompt.slice(0, 2000), html:preview.html, is_public:pub, remix_of:preview.remixOf || null }));
+  $('shareModal').classList.add('hide');
+  toast(pub ? 'Shared to Community' : 'Saved to My creations');
+}); };
+
+/* ---------- viewer ---------- */
+var viewing = null;
+function openViewer(c){
+  viewing = c;
+  $('vTitle').textContent = c.title; $('vBy').textContent = c.own ? 'Your build' : 'by ' + nameOf(c.user_id) + (c.created_at ? ', ' + ago(c.created_at) : '');
+  $('vLike').classList.toggle('hide', !c.id || !c.is_public);
+  $('vLike').setAttribute('aria-pressed', !!(c.id && liked[c.id])); $('vLikes').textContent = c.like_count || 0;
+  $('vRemix').classList.toggle('hide', !!c.own && !c.id);
+  $('vFrame').srcdoc = c.html; $('viewer').classList.remove('hide');
+}
+function closeViewer(){ $('viewer').classList.add('hide'); $('vFrame').srcdoc = ''; viewing = null; }
+$('vClose').onclick = closeViewer;
+$('vDown').onclick = function(){ if(viewing) download(viewing.title, viewing.html); };
+$('vRemix').onclick = function(){ if(viewing){ var c = viewing; closeViewer(); startRemix(c); } };
+$('vLike').onclick = function(){ if(viewing) toggleLike(viewing, function(){ $('vLike').setAttribute('aria-pressed', !!liked[viewing.id]); $('vLikes').textContent = viewing.like_count; }); };
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Escape') return;
+  if(generating){ stopGen(); return; }
+  if(!$('viewer').classList.contains('hide')) closeViewer();
+  else if(!$('shareModal').classList.contains('hide')) $('shareModal').classList.add('hide');
+  else $('enginePop').classList.add('hide');
+});
+function startRemix(c){
+  go('chat'); newChat();
+  pendingRemix = { id:c.id || null, title:c.title, html:c.html };
+  $('remixTxt').textContent = 'Remixing: ' + c.title; $('remixChip').classList.remove('hide');
+  setPreview(c.html, c.title, '', true, c.id || null);
+  $('input').placeholder = 'What should change? For example: add sound, make it two-player, change the colours';
+  $('input').focus();
+}
+
+/* ---------- community & mine ---------- */
+var gallery = [], liked = {}, gSort = 'top', thumbObs = null;
+async function loadLikes(){
+  if(me.is_anonymous){ liked = {}; return; }
+  var rows = chk(await sb.from('creation_likes').select('creation_id').eq('user_id', me.id)) || [];
+  liked = {}; rows.forEach(function(r){ liked[r.creation_id] = true; });
+}
+async function ensureProfiles(ids){
+  var need = ids.filter(function(id, i){ return id && !profiles[id] && ids.indexOf(id) === i; });
+  if(!need.length) return;
+  (chk(await sb.from('profiles').select('*').in('id', need)) || []).forEach(function(p){ profiles[p.id] = p; });
+}
+async function loadGallery(){
+  $('gGrid').innerHTML = '<div class="empty">Loading…</div>';
+  await act(async function(){
+    var q = sb.from('creations').select('id,title,prompt,html,like_count,user_id,created_at,is_public').eq('is_public', true).limit(48);
+    q = gSort === 'top' ? q.order('like_count', { ascending:false }).order('created_at', { ascending:false }) : q.order('created_at', { ascending:false });
+    var s = $('gSearch').value.trim(); if(s) q = q.ilike('title', '%' + s.replace(/[%_]/g, '') + '%');
+    gallery = chk(await q) || [];
+    await Promise.all([ensureProfiles(gallery.map(function(c){ return c.user_id; })), loadLikes()]);
+    renderGrid($('gGrid'), gallery, false);
+  });
+}
+async function loadMine(){
+  $('mGrid').innerHTML = '<div class="empty">Loading…</div>';
+  await act(async function(){
+    var rows = chk(await sb.from('creations').select('id,title,prompt,html,like_count,user_id,created_at,is_public').eq('user_id', me.id).order('created_at', { ascending:false })) || [];
+    await loadLikes();
+    renderGrid($('mGrid'), rows, true);
+  });
+}
+function renderGrid(root, list, mine){
+  if(!list.length){
+    root.innerHTML = '<div class="empty" style="grid-column:1/-1">' + (mine ? 'Nothing saved yet. Build something in Chat, then press Share in the preview.' : 'No creations here yet. Be the first to share one.') + ' <button class="btn sm pri" data-go-chat>Start building</button></div>';
+    root.querySelector('[data-go-chat]').onclick = function(){ go('chat'); };
+    return;
+  }
+  root.innerHTML = list.map(function(c, i){
+    return '<article class="card"><div class="thumb" data-view="'+i+'"><div class="ph">Loading preview</div></div><div class="ci"><b title="'+esc(c.title)+'">'+esc(c.title)+'</b><span class="by">'+(mine ? (c.is_public ? '<span class="tag pub">Shared</span>' : '<span class="tag">Private</span>') + ' ' + ago(c.created_at) : 'by ' + esc(nameOf(c.user_id)) + ', ' + ago(c.created_at))+'</span></div><div class="ca">' +
+      (c.is_public ? '<button class="like" data-like="'+i+'" aria-pressed="'+!!liked[c.id]+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>'+(c.like_count || 0)+'</span></button>' : '') +
+      '<div style="flex:1"></div>' +
+      (mine ? '<button class="btn sm ghost" data-vis="'+i+'">'+(c.is_public ? 'Make private' : 'Share')+'</button><button class="btn sm ghost" data-rm="'+i+'">Delete</button>' : '') +
+      '<button class="btn sm" data-remix="'+i+'">Remix</button></div></article>';
+  }).join('');
+  if(thumbObs) thumbObs.disconnect();
+  thumbObs = new IntersectionObserver(function(ents){ ents.forEach(function(en){
+    var el = en.target, c = list[+el.dataset.view];
+    if(en.isIntersecting && !el.querySelector('iframe')){ var f = document.createElement('iframe'); f.setAttribute('sandbox', 'allow-scripts'); f.setAttribute('tabindex', '-1'); f.setAttribute('aria-hidden', 'true'); f.srcdoc = c.html; el.innerHTML = ''; el.appendChild(f); }
+    else if(!en.isIntersecting && el.querySelector('iframe')){ el.innerHTML = '<div class="ph">Preview paused</div>'; }
+  }); }, { rootMargin:'200px' });
+  root.querySelectorAll('[data-view]').forEach(function(el){ thumbObs.observe(el); el.onclick = function(){ var c = list[+el.dataset.view]; openViewer(Object.assign({}, c, { own:mine })); }; });
+  root.querySelectorAll('[data-like]').forEach(function(b){ b.onclick = function(){ var c = list[+b.dataset.like]; toggleLike(c, function(){ b.setAttribute('aria-pressed', !!liked[c.id]); b.querySelector('span').textContent = c.like_count; }); }; });
+  root.querySelectorAll('[data-remix]').forEach(function(b){ b.onclick = function(){ startRemix(list[+b.dataset.remix]); }; });
+  root.querySelectorAll('[data-vis]').forEach(function(b){ b.onclick = function(){ act(async function(){ var c = list[+b.dataset.vis]; chk(await sb.from('creations').update({ is_public:!c.is_public, updated_at:new Date().toISOString() }).eq('id', c.id)); toast(c.is_public ? 'Now private' : 'Shared to Community'); loadMine(); }); }; });
+  root.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ act(async function(){ var c = list[+b.dataset.rm]; if(!confirm('Delete "' + c.title + '"?')) return; chk(await sb.from('creations').delete().eq('id', c.id)); toast('Deleted'); loadMine(); }); }; });
+}
+function toggleLike(c, done){ act(async function(){
+  if(me.is_anonymous) throw new Error('Create an account to like creations.');
+  if(liked[c.id]){ chk(await sb.from('creation_likes').delete().eq('creation_id', c.id).eq('user_id', me.id)); liked[c.id] = false; c.like_count = Math.max(0, c.like_count - 1); }
+  else { chk(await sb.from('creation_likes').insert({ creation_id:c.id })); liked[c.id] = true; c.like_count = (c.like_count || 0) + 1; }
+  done();
+}); }
+var gT; $('gSearch').oninput = function(){ clearTimeout(gT); gT = setTimeout(loadGallery, 300); };
+document.querySelectorAll('#gSort button').forEach(function(b){ b.onclick = function(){ gSort = b.dataset.s; document.querySelectorAll('#gSort button').forEach(function(x){ x.setAttribute('aria-selected', x === b); }); loadGallery(); }; });
+
+/* ---------- settings ---------- */
+async function renderSettings(){
+  $('sUser').value = profile.username; $('sName').value = profile.display_name || ''; $('sBio').value = profile.bio || '';
+  $('setEngine').value = engine; paintEngine();
+  $('modelNote').textContent = navigator.gpu ? 'Checking this model…' : 'This browser has no WebGPU, so on-device models cannot run here.';
+  $('usageNote').textContent = '';
+  if(navigator.gpu){
+    try{ if(!webllm) webllm = await import(WEBLLM_URL); var c = await webllm.hasModelInCache(localModel); $('modelNote').textContent = c ? modelName(localModel) + ' is downloaded and works offline.' : modelName(localModel) + ' is not downloaded yet. It downloads the first time you use it.'; }
+    catch(e){ $('modelNote').textContent = 'The on-device engine could not load right now.'; }
+  }
+  act(async function(){
+    var r = chk(await sb.from('ai_usage').select('count').eq('user_id', me.id).eq('day', new Date().toISOString().slice(0, 10)).maybeSingle());
+    $('usageNote').textContent = 'Cloud messages sent today: ' + (r ? r.count : 0) + '. There is no limit.';
+  });
+}
+$('setEngine').onchange = function(){ setEngine(this.value); };
+$('setModel').onchange = function(){ setModel(this.value); renderSettings(); };
+$('dlModel').onclick = function(){ act(async function(){
+  if(!navigator.gpu) throw new Error('This browser has no WebGPU.');
+  if(!webllm) webllm = await import(WEBLLM_URL);
+  $('dlModel').disabled = true;
+  try{
+    if(mlc){ try{ await mlc.unload(); }catch(e){} }
+    mlc = await webllm.CreateMLCEngine(localModel, { initProgressCallback:function(p){ $('modelNote').textContent = 'Downloading ' + modelName(localModel) + ', ' + Math.round((p.progress || 0) * 100) + '%'; } });
+    mlcModel = localModel; $('modelNote').textContent = modelName(localModel) + ' is downloaded and ready.';
+  } finally { $('dlModel').disabled = false; }
+}); };
+$('rmModel').onclick = function(){ act(async function(){
+  if(!webllm) webllm = await import(WEBLLM_URL);
+  if(mlc && mlcModel === localModel){ try{ await mlc.unload(); }catch(e){} mlc = null; mlcModel = null; }
+  await webllm.deleteModelAllInfoInCache(localModel);
+  $('modelNote').textContent = modelName(localModel) + ' was removed from this device.';
+}); };
+$('sSave').onclick = function(){ act(async function(){
+  var u = $('sUser').value.trim();
+  if(!/^[A-Za-z0-9_]{3,20}$/.test(u)) throw new Error('Usernames are 3 to 20 letters, numbers or underscores.');
+  profile = chk(await sb.from('profiles').update({ username:u, display_name:$('sName').value.trim() || null, bio:$('sBio').value.trim() || null }).eq('id', me.id).select().single());
+  profiles[me.id] = profile; paintMe(); toast('Profile saved');
+}); };
+$('sOut').onclick = function(){ act(async function(){ if(generating) stopGen(); await sb.auth.signOut(); }); };
+
+/* ---------- first-run download screen ---------- */
+var setupPick = localModel, setupTimer = null, setupBusy = false;
+var TIPS = [
+  'Tip: describe what you want in plain words. "A space shooter with power-ups" is enough to start.',
+  'Tip: after a build appears, ask for changes like "make it two-player" or "add sound".',
+  'Tip: press Share in the preview to put your creation in Community for everyone.',
+  'Tip: Remix any Community creation to make your own version of it.',
+  'Tip: the pause button stops writing at any point. Continue picks up where it left off.',
+  'Tip: once downloaded, the on-device model keeps working with no internet connection.'
+];
+async function maybeSetup(){
+  var key = 'coco:setup:' + me.id;
+  if(localStorage.getItem(key)) return;
+  if(!navigator.gpu){ localStorage.setItem(key, 'nogpu'); if(engine === 'local') setEngine('cloud'); toast('This browser has no WebGPU, so Cocodenut will use Cloud AI.'); return; }
+  try{ if(!webllm) webllm = await import(WEBLLM_URL); if(await webllm.hasModelInCache(localModel)){ localStorage.setItem(key, localModel); return; } }catch(e){}
+  showSetup();
+}
+function renderSetupModels(){
+  $('setupModels').innerHTML = LOCAL_MODELS.map(function(m){
+    return '<button class="model" role="radio" aria-checked="'+(m[0] === setupPick)+'" data-m="'+m[0]+'"><span class="rd"></span><span class="mt"><b>'+esc(m[1])+'</b><span>'+esc(m[2])+'</span></span><span class="sz">'+m[3]+' GB'+(m[0] === LOCAL_MODELS[0][0] ? '<em>Recommended</em>' : '')+'</span></button>';
+  }).join('');
+  $('setupModels').querySelectorAll('.model').forEach(function(b){ b.onclick = function(){ if(setupBusy) return; setupPick = b.dataset.m; renderSetupModels(); startCountdown(); }; });
+}
+function startCountdown(){
+  clearInterval(setupTimer);
+  var n = 8; $('setupCount').textContent = 'Starting automatically in ' + n + 's';
+  setupTimer = setInterval(function(){ n--; if(n <= 0){ clearInterval(setupTimer); runSetup(); } else $('setupCount').textContent = 'Starting automatically in ' + n + 's'; }, 1000);
+}
+function showSetup(){
+  setupPick = localModel; setupBusy = false;
+  $('setupModels').classList.remove('locked'); $('setupProg').classList.add('hide'); $('setupErr').classList.add('hide');
+  $('setupGo').classList.remove('hide'); $('setupGo').textContent = 'Download and start';
+  renderSetupModels(); $('setup').classList.remove('hide'); startCountdown();
+}
+async function runSetup(){
+  if(setupBusy) return; setupBusy = true; clearInterval(setupTimer);
+  $('setupCount').textContent = ''; $('setupGo').classList.add('hide'); $('setupErr').classList.add('hide');
+  $('setupModels').classList.add('locked'); $('setupProg').classList.remove('hide');
+  var ti = 0; $('setupTip').textContent = TIPS[0];
+  var tipT = setInterval(function(){ ti = (ti + 1) % TIPS.length; $('setupTip').textContent = TIPS[ti]; }, 6000);
+  var name = modelName(setupPick);
+  try{
+    $('setupTxt').textContent = 'Loading the AI engine…';
+    if(!webllm) webllm = await import(WEBLLM_URL);
+    if(mlc){ try{ await mlc.unload(); }catch(e){} mlc = null; mlcModel = null; }
+    mlc = await webllm.CreateMLCEngine(setupPick, { initProgressCallback:function(p){
+      var pct = Math.round((p.progress || 0) * 100);
+      $('setupBar').style.width = pct + '%'; $('setupPct').textContent = pct + '%';
+      $('setupTxt').textContent = pct < 100 ? 'Downloading ' + name + '. This only happens once.' : 'Starting ' + name + ' on your graphics card…';
+    } });
+    mlcModel = setupPick; setModel(setupPick); setEngine('local');
+    localStorage.setItem('coco:setup:' + me.id, setupPick);
+    $('setupBar').style.width = '100%'; $('setupPct').textContent = '100%'; $('setupTxt').textContent = name + ' is ready.';
+    setTimeout(function(){ $('setup').classList.add('hide'); toast(name + ' is ready. Ask for anything.'); $('input').focus(); }, 700);
+  }catch(e){
+    mlc = null; mlcModel = null;
+    var i = LOCAL_MODELS.findIndex(function(m){ return m[0] === setupPick; });
+    var smaller = LOCAL_MODELS.slice().sort(function(a, b){ return a[3] - b[3]; }).filter(function(m){ return m[3] < LOCAL_MODELS[i][3]; }).pop();
+    $('setupErr').textContent = name + ' could not start on this device: ' + (e.message || e) + (smaller ? ' Try ' + smaller[1] + ', which needs less memory.' : '');
+    $('setupErr').classList.remove('hide'); $('setupProg').classList.add('hide');
+    $('setupModels').classList.remove('locked'); $('setupGo').classList.remove('hide'); $('setupGo').textContent = 'Try again';
+    if(smaller){ setupPick = smaller[0]; renderSetupModels(); }
+  }finally{ clearInterval(tipT); setupBusy = false; }
+}
+$('setupGo').onclick = runSetup;
+$('setupSkip').onclick = function(){
+  clearInterval(setupTimer);
+  localStorage.setItem('coco:setup:' + me.id, 'skipped');
+  setEngine('cloud'); $('setup').classList.add('hide');
+  if(setupBusy) toast('Download continues in the background. Cloud AI is on for now.');
+};
+
+window.addEventListener('beforeunload', function(e){ if(generating){ e.preventDefault(); e.returnValue = ''; } });
+boot();
+})();
+</script>
+</body>
+</html>
